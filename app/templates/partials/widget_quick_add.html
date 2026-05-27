@@ -1,0 +1,16 @@
+{% set wdata = data if data else widget_data_map[widget.id] %}
+<div class="flex flex-col h-full justify-center text-center px-4">
+  <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white mb-4">{{ wdata.title }}</h3>
+  <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Quickly record a new sale or expense without leaving the dashboard.</p>
+  
+  <!-- We reuse the transaction modal by calling the same HTMX endpoint.
+       Because the modal container is not in dashboard index (it's in transactions index),
+       we'll add a lightweight modal container to dashboard index too. -->
+  <button type="button" @click="modalOpen = true" hx-get="/transactions/add" hx-target="#dashboard-modal-content"
+    class="inline-flex w-full items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors">
+    <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+    </svg>
+    Record Transaction
+  </button>
+</div>

@@ -1,0 +1,51 @@
+<div data-widget-id="{{ widget.id }}" 
+     id="widget-container-{{ widget.id }}"
+     class="col-span-1 {% if widget.widget_type in ['bar_chart', 'recent_transactions'] %}sm:col-span-2 lg:col-span-4{% elif widget.widget_type == 'quick_add' %}sm:col-span-2 lg:col-span-2{% endif %}"
+     x-show="editMode || {{ 'true' if widget.is_visible else 'false' }}">
+  
+  <div class="relative bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg border border-gray-100 dark:border-gray-700 h-full flex flex-col"
+       :class="{ 'opacity-50 grayscale': editMode && !{{ 'true' if widget.is_visible else 'false' }} }">
+    
+    <!-- Edit Mode Controls Overlay -->
+    <div x-show="editMode" class="absolute inset-0 z-10 bg-gray-900/10 dark:bg-black/20 flex flex-col items-center justify-center backdrop-blur-[1px] transition-opacity" style="display: none;">
+      <div class="flex items-center space-x-4 bg-white dark:bg-gray-800 p-2 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600">
+        <!-- Drag Handle -->
+        <div class="widget-drag-handle cursor-grab active:cursor-grabbing p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" title="Drag to reorder">
+          <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+          </svg>
+        </div>
+        
+        <!-- Toggle Visibility -->
+        <button hx-post="/dashboard/widgets/{{ widget.id }}/toggle" hx-target="#widget-container-{{ widget.id }}" hx-swap="outerHTML" 
+                class="p-2 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 focus:outline-none" title="Toggle visibility">
+          {% if widget.is_visible %}
+          <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          {% else %}
+          <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.29 3.29m0 0l3.29 3.29m0 0l3.29 3.29" />
+          </svg>
+          {% endif %}
+        </button>
+      </div>
+    </div>
+
+    <!-- Widget Content -->
+    <div class="flex-1 p-5">
+      {% if widget.widget_type == 'summary_card' %}
+        {% include "partials/widget_summary_card.html" %}
+      {% elif widget.widget_type == 'bar_chart' %}
+        {% include "partials/widget_bar_chart.html" %}
+      {% elif widget.widget_type == 'recent_transactions' %}
+        {% include "partials/widget_recent_transactions.html" %}
+      {% elif widget.widget_type == 'quick_add' %}
+        {% include "partials/widget_quick_add.html" %}
+      {% else %}
+        <p class="text-gray-500">Unknown widget type: {{ widget.widget_type }}</p>
+      {% endif %}
+    </div>
+  </div>
+</div>

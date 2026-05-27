@@ -1,0 +1,126 @@
+/*
+  app/static/css/app.css
+  ─────────────────────────────────────────────────────────────
+  Custom styles that extend Tailwind.
+  Phase 7 will replace the Tailwind CDN link with a purged
+  production build. For now, all Tailwind utilities come from CDN.
+  This file handles:
+    - Base resets that Tailwind doesn't cover
+    - Custom scrollbar styling
+    - HTMX loading indicator
+    - Transitions for Alpine.js
+    - Print overrides
+*/
+
+/* ── Smooth scrolling for anchor links ── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Custom thin dark scrollbar (Webkit) ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #111827;
+}
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+/* ── HTMX loading indicator ──────────────────────────────────
+   When any HTMX request is in-flight, htmx adds the
+   .htmx-request class to the triggering element.
+   We show a subtle animated border to signal activity.
+*/
+.htmx-request {
+  opacity: 0.65;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+/* Top-of-page loading bar */
+#htmx-indicator {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0%;
+  height: 2px;
+  background: linear-gradient(90deg, #6366f1, #818cf8);
+  z-index: 9999;
+  transition: width 300ms ease;
+  opacity: 0;
+}
+.htmx-request #htmx-indicator,
+.htmx-request.htmx-indicator {
+  opacity: 1;
+  width: 80%;
+}
+
+/* ── Alpine.js [x-cloak] — hides content before Alpine boots ──
+   Add x-cloak to elements that use Alpine directives to prevent
+   flash of un-initialized content on slow phones.
+*/
+[x-cloak] {
+  display: none !important;
+}
+
+/* ── Focus rings — consistent across browsers ── */
+:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* ── Form input autofill override for dark theme ── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 40px #1f2937 inset !important;
+  -webkit-text-fill-color: #f9fafb !important;
+  caret-color: #f9fafb;
+}
+
+/* ── Currency amounts — monospace for alignment ── */
+.amount-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Transition helpers for HTMX swaps ──
+   Add class="htmx-fade" to elements that should fade in
+   when HTMX inserts them into the DOM.
+*/
+.htmx-fade {
+  animation: htmx-fade-in 200ms ease forwards;
+}
+@keyframes htmx-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Mobile bottom-nav safe area for notched phones ── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .mobile-nav-safe {
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Print: hide nav, show only content ── */
+@media print {
+  nav, #toast-container, .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  main {
+    padding: 0;
+    max-width: 100%;
+  }
+}

@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables (NEVER commit real secrets)
+.env
+
+# SQLite database (data is local, not in version control)
+*.db
+*.db-shm
+*.db-wal
+
+# Uploads (user files, too large for git)
+app/static/uploads/
+
+# Alembic
+alembic/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Pytest cache
+.pytest_cache/
+.coverage
+htmlcov/

@@ -1,0 +1,51 @@
+{% set wdata = data if data else widget_data_map[widget.id] %}
+<div class="flex flex-col h-full">
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">{{ wdata.title }}</h3>
+    <a href="/reports" class="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">View all</a>
+  </div>
+  <div class="flex-1 relative min-h-[250px]" x-data="{ chartInstance: null }" x-init="
+    const ctx = $refs.canvas.getContext('2d');
+    chartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {{ wdata.chart_data | tojson }},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          y: { 
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(156, 163, 175, 0.1)'
+            },
+            ticks: {
+              color: 'rgba(156, 163, 175, 0.8)'
+            }
+          },
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              color: 'rgba(156, 163, 175, 0.8)'
+            }
+          }
+        }
+      }
+    });
+    
+    // Cleanup to prevent memory leaks if HTMX swaps out
+    $el.addEventListener('htmx:beforeCleanupElement', () => {
+        if(chartInstance) chartInstance.destroy();
+    });
+  ">
+    <canvas x-ref="canvas"></canvas>
+  </div>
+</div>
+<!-- Chart.js dependency (only loaded once, better to put in base if used everywhere, but here is okay for a single page app style if injected via HTMX it might not execute. We will ensure Chart.js is loaded in the dashboard index or base) -->
+{% if not request.headers.get("hx-request") %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endif %}

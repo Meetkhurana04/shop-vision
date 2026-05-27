@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700">
+    <div>
+      <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+        Create an Account
+      </h2>
+      <p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+        Join {{ settings.APP_NAME }}
+      </p>
+    </div>
+
+    <form class="mt-8 space-y-6" hx-post="/auth/register" hx-target="this" hx-swap="outerHTML">
+      {% if error %}
+      <div class="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-md p-4">
+        <div class="flex">
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800 dark:text-red-300">
+              {{ error }}
+            </h3>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      
+      <div class="rounded-md shadow-sm space-y-4">
+        <div>
+          <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
+          <input id="name" name="name" type="text" required value="{{ name or '' }}"
+            class="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white mt-1" 
+            placeholder="John Doe">
+        </div>
+        <div>
+          <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required value="{{ username or '' }}"
+            class="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white mt-1" 
+            placeholder="johndoe">
+        </div>
+        <div>
+          <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+          <input id="password" name="password" type="password" autocomplete="new-password" required
+            class="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white mt-1" 
+            placeholder="••••••••">
+        </div>
+        <div>
+          <label for="role" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
+          <select id="role" name="role" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            <option value="cashier" {% if role == 'cashier' %}selected{% endif %}>Cashier (Limited Access)</option>
+            <option value="manager" {% if role == 'manager' %}selected{% endif %}>Manager (Full Access)</option>
+            <option value="owner" {% if role == 'owner' %}selected{% endif %}>Owner (Admin)</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <button type="submit" 
+          class="group relative w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+          <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+            <svg class="htmx-indicator animate-spin h-5 w-5 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </span>
+          Register
+        </button>
+      </div>
+    </form>
+    
+    <div class="mt-4 text-center">
+      <a href="/auth/login" class="font-medium text-sm text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 transition-colors">
+        Already have an account? Sign in
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

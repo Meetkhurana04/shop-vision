@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block page_heading %}Server Error{% endblock %}
+{% block content %}
+<div class="flex items-center justify-center min-h-[50vh]">
+  <div class="text-center">
+    <p class="text-7xl font-black text-gray-800 mb-4">500</p>
+    <p class="text-gray-300 font-semibold mb-2">Something went wrong</p>
+    <p class="text-gray-500 text-sm mb-6">The server hit an error. Please try again or contact your admin.</p>
+    <a href="/dashboard"
+       class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg
+              bg-primary/20 border border-primary/30 hover:bg-primary/30
+              text-primary text-sm font-medium transition-all duration-150">
+      ← Go to Dashboard
+    </a>
+  </div>
+</div>
+{% endblock %}

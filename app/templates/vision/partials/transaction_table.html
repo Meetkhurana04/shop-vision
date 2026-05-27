@@ -1,0 +1,80 @@
+<!-- vision/partials/transaction_table.html -->
+<!-- HTMX target: #txn-table-container — replaced on pagination -->
+<div id="txn-table-container">
+  <div class="overflow-x-auto rounded-xl border border-gray-700/60 bg-gray-900/40">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-800/80 text-gray-400 text-xs uppercase sticky top-0">
+        <tr>
+          <th class="py-2 px-2 text-left">Photo</th>
+          <th class="py-2 px-2 text-left">Type</th>
+          <th class="py-2 px-2 text-left">Amount</th>
+          <th class="py-2 px-2 text-left">Balance</th>
+          <th class="py-2 px-2 text-left hidden sm:table-cell">When</th>
+          <th class="py-2 px-2 text-left hidden sm:table-cell">Note</th>
+          <th class="py-2 px-2 text-left">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="txn-tbody">
+        {% for txn in transactions %}
+          {% set running_balance = running_balances.get(txn.id, 0) %}
+          {% include "vision/partials/transaction_row.html" %}
+        {% else %}
+          <tr>
+            <td colspan="7" class="py-10 text-center text-gray-500 text-sm">
+              <div class="flex flex-col items-center gap-2">
+                <svg class="w-10 h-10 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                <span>No transactions yet.</span>
+                <span class="text-xs text-gray-600">Use the calculator above to record the first one!</span>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+
+      <!-- Lifetime Balance Footer -->
+      <tfoot class="bg-gray-800/60 border-t-2 border-gray-600">
+        <tr>
+          <td colspan="3" class="py-3 px-3 text-xs font-bold text-gray-400 uppercase tracking-wider">
+            Lifetime Outstanding
+          </td>
+          <td colspan="4" class="py-3 px-2 font-bold text-base
+                                 {% if stats.outstanding > 0 %}text-red-400
+                                 {% elif stats.outstanding < 0 %}text-blue-400
+                                 {% else %}text-green-400{% endif %}">
+            {% if stats.outstanding > 0 %}
+              ₹{{ "%.0f"|format(stats.outstanding) }} pending
+            {% elif stats.outstanding < 0 %}
+              ₹{{ "%.0f"|format(stats.outstanding|abs) }} advance
+            {% else %}
+              ₹0 — All Clear ✓
+            {% endif %}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if total_pages > 1 %}
+  <div class="flex justify-center items-center gap-4 mt-4">
+    {% if page > 1 %}
+      <button class="px-4 py-2 text-sm bg-gray-800 text-gray-300 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
+              hx-get="/vision/customer/{{ customer_id }}/transactions?page={{ page - 1 }}"
+              hx-target="#txn-table-container" hx-swap="outerHTML">
+        ← Prev
+      </button>
+    {% endif %}
+    <span class="text-sm text-gray-500">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+      <button class="px-4 py-2 text-sm bg-gray-800 text-gray-300 rounded-lg border border-gray-700 hover:bg-gray-700 transition-colors"
+              hx-get="/vision/customer/{{ customer_id }}/transactions?page={{ page + 1 }}"
+              hx-target="#txn-table-container" hx-swap="outerHTML">
+        Next →
+      </button>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

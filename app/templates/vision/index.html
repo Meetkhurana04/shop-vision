@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Vision — {{ settings.APP_NAME }}{% endblock %}
+
+{% block content %}
+<div class="h-[calc(100vh-8rem)] flex flex-col md:flex-row gap-6" x-data="visionSystem()">
+    
+    <!-- LEFT SIDE: Camera Feed (60%) -->
+    <div class="w-full md:w-3/5 bg-gray-900 rounded-xl overflow-hidden shadow-2xl relative flex flex-col">
+        <!-- Header Overlay -->
+        <div class="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-20 flex justify-between items-center">
+            <h2 class="text-white font-semibold flex items-center gap-2">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+                LIVE FEED
+            </h2>
+            <div class="text-xs text-gray-300 font-mono" x-text="fps + ' FPS'">0 FPS</div>
+        </div>
+        
+        <!-- Video Container -->
+        <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden" x-ref="videoContainer">
+            <!-- Loader -->
+            <div x-show="isLoading" class="absolute inset-0 flex flex-col items-center justify-center text-white z-10 bg-gray-900">
+                <svg class="animate-spin h-10 w-10 text-indigo-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <p x-text="statusMessage" class="text-sm text-gray-400">Initializing AI models...</p>
+            </div>
+            
+            <video x-ref="video" autoplay muted playsinline class="absolute inset-0 w-full h-full object-cover"></video>
+            <canvas x-ref="canvas" class="absolute inset-0 w-full h-full object-cover z-10 pointer-events-none"></canvas>
+        </div>
+        
+        <!-- Controls -->
+        <div class="bg-gray-800 p-4 flex justify-between items-center border-t border-gray-700 z-20">
+            <button @click="toggleCamera" class="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md text-white text-sm transition-colors">
+                <svg x-show="cameraActive" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                <svg x-show="!cameraActive" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /><line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <span x-text="cameraActive ? 'Stop Camera' : 'Start Camera'"></span>
+            </button>
+            <div class="text-xs text-gray-400 flex items-center gap-2">
+                Faces detected: <span class="bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold" x-text="facesDetected">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT SIDE: Live Tiles Sidebar (40%) -->
+    <div class="w-full md:w-2/5 flex flex-col bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="p-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h3 class="font-bold text-gray-900 dark:text-white">Live Customers</h3>
+            <button class="text-indigo-600 hover:text-indigo-500 text-sm font-medium">History</button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100 dark:bg-gray-800/50">
+            <!-- Detected Faces List -->
+            <template x-for="(face, index) in detectedFaces" :key="face.id">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 transition-all duration-300 transform hover:-translate-y-1">
+                    <div class="flex gap-4">
+                        <!-- Face crop thumbnail -->
+                        <div class="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex-shrink-0 border-2" :class="face.status === 'known' ? 'border-green-500' : 'border-indigo-500'">
+                            <img :src="face.base64Image" class="w-full h-full object-cover" />
+                        </div>
+                        
+                        <!-- Known Customer Status -->
+                        <div class="flex-1" x-show="face.status === 'known'">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h4 class="font-bold text-green-700 dark:text-green-400 text-lg" x-text="face.customer.family_name + ' Family'"></h4>
+                                    <p class="text-xs text-gray-500" x-text="face.customer.display_name"></p>
+                                </div>
+                                <span class="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded shadow-sm flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Matched
+                                </span>
+                            </div>
+                            <div class="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                                <a :href="'/vision/customer/' + face.customer.customer_id"
+                                   class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-1 px-3 rounded shadow-sm w-full transition-colors block text-center">
+                                  View Dashboard &rarr;
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <!-- Unknown Status -->
+                        <div class="flex-1" x-show="face.status === 'unknown'">
+                            <div class="flex justify-between items-start">
+                                <h4 class="font-bold text-gray-900 dark:text-white text-lg">Unknown Person</h4>
+                                <span class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded">New</span>
+                            </div>
+                            <div class="mt-3 flex gap-2">
+                                <button @click="face.status = 'registering'" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs py-1.5 px-3 rounded shadow-sm transition-colors">Add New</button>
+                                <button @click="detectedFaces.splice(index, 1)" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-xs py-1.5 px-3 rounded shadow-sm transition-colors">Dismiss</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Registering Form -->
+                        <div class="flex-1" x-show="face.status === 'registering'">
+                            <form @submit.prevent="registerFace(face, index)" class="space-y-2">
+                                <input type="text" x-model="face.familyName" placeholder="Family Name (e.g. Smith)" required class="w-full text-sm border-gray-300 rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600">
+                                <input type="text" x-model="face.displayName" placeholder="Person Name (Optional)" class="w-full text-sm border-gray-300 rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600">
+                                <input type="text" x-model="face.phone" placeholder="Phone (Optional)" class="w-full text-sm border-gray-300 rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600">
+                                
+                                <div class="flex gap-2 pt-1">
+                                    <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-3 rounded shadow-sm">Save</button>
+                                    <button type="button" @click="face.status = 'unknown'" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1.5 px-3 rounded shadow-sm">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Registered Status -->
+                        <div class="flex-1 flex flex-col justify-center" x-show="face.status === 'registered'">
+                            <div class="text-green-600 font-semibold flex items-center gap-2 text-lg">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                Saved!
+                            </div>
+                            <div class="text-sm text-gray-500 mt-1">Family: <span class="font-bold text-gray-700 dark:text-gray-300" x-text="face.familyName"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            
+            <!-- Empty state -->
+            <div x-show="detectedFaces.length === 0" class="h-full flex flex-col items-center justify-center text-gray-400 space-y-3">
+                <svg class="h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <p class="text-sm">Waiting for customers...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- face-api.js from CDN -->
+<script defer src="https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/dist/face-api.min.js"></script>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('visionSystem', () => ({
+        isLoading: true,
+        statusMessage: 'Loading face-api.js models...',
+        modelsLoaded: false,
+        cameraActive: false,
+        stream: null,
+        facesDetected: 0,
+        fps: 0,
+        lastFrameTime: 0,
+        detectionInterval: null,
+        detectedFaces: [], // Array to hold unique faces shown on screen
+        knownEmbeddings: [], // Fetched from backend
+        
+        // Settings
+        THROTTLE_MS: 700, // Detect every 700ms to save CPU
+        MATCH_THRESHOLD: 0.5, // Euclidean distance threshold
+        STAY_TIME_MS: 10 * 60 * 1000, // Keep tile for 10 minutes
+        
+        async init() {
+            try {
+                // Fetch known embeddings from backend in parallel
+                this.fetchKnownEmbeddings();
+                
+                // Wait for faceapi script to load if it hasn't yet
+                while(typeof faceapi === 'undefined') {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                
+                // We use jsdelivr to fetch the models from the github repo directly
+                const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+                
+                // Load tiny face detector (faster for low-end devices than SSD Mobilenet)
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                
+                this.modelsLoaded = true;
+                this.statusMessage = 'Models loaded. Starting camera...';
+                await this.startCamera();
+                
+            } catch (err) {
+                console.error("Error initializing Vision AI:", err);
+                this.statusMessage = 'Error loading AI models. Please check console.';
+            }
+        },
+        
+        async fetchKnownEmbeddings() {
+            try {
+                const res = await fetch('/vision/embeddings');
+                if(res.ok) {
+                    const data = await res.json();
+                    // Convert standard JS arrays to Float32Array for face-api.js comparison
+                    this.knownEmbeddings = data.map(k => ({
+                        ...k,
+                        descriptor: new Float32Array(k.embedding)
+                    }));
+                    console.log(`Loaded ${this.knownEmbeddings.length} known faces.`);
+                }
+            } catch (err) {
+                console.error("Failed to fetch embeddings", err);
+            }
+        },
+        
+        async startCamera() {
+            try {
+                this.stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } // Prefer back camera
+                });
+                
+                const video = this.$refs.video;
+                video.srcObject = this.stream;
+                
+                // Wait for video to actually start playing
+                video.addEventListener('play', () => {
+                    this.isLoading = false;
+                    this.cameraActive = true;
+                    this.setupCanvas();
+                    this.startDetectionLoop();
+                });
+                
+            } catch (err) {
+                console.error("Camera error:", err);
+                this.statusMessage = 'Camera access denied or unavailable.';
+            }
+        },
+        
+        stopCamera() {
+            if (this.stream) {
+                this.stream.getTracks().forEach(track => track.stop());
+                this.stream = null;
+            }
+            if (this.detectionInterval) {
+                clearInterval(this.detectionInterval);
+            }
+            this.cameraActive = false;
+            this.facesDetected = 0;
+            this.fps = 0;
+            
+            // Clear canvas
+            const canvas = this.$refs.canvas;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        },
+        
+        toggleCamera() {
+            if (this.cameraActive) {
+                this.stopCamera();
+            } else {
+                this.isLoading = true;
+                this.statusMessage = 'Starting camera...';
+                this.startCamera();
+            }
+        },
+        
+        setupCanvas() {
+            const video = this.$refs.video;
+            const canvas = this.$refs.canvas;
+            
+            // Match canvas dimensions to video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // Fix display size to match CSS layout
+            const displaySize = { width: video.clientWidth, height: video.clientHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+        },
+        
+        startDetectionLoop() {
+            const video = this.$refs.video;
+            const canvas = this.$refs.canvas;
+            
+            this.detectionInterval = setInterval(async () => {
+                if (!this.modelsLoaded || !this.cameraActive || video.paused || video.ended) return;
+                
+                const startTime = performance.now();
+                
+                // Detect faces
+                // We use TinyFaceDetector for performance
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptors();
+                    
+                const displaySize = { width: video.clientWidth, height: video.clientHeight };
+                
+                // Clear previous boxes
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (detections.length > 0) {
+                    // Resize results to match display
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    
+                    // Draw boxes
+                    faceapi.draw.drawDetections(canvas, resizedDetections);
+                    
+                    // Update state
+                    this.facesDetected = detections.length;
+                    
+                    // Add dummy data to right panel to show layout works
+                    // In Phase 8B, we will process and crop faces properly.
+                    this.updateLiveTiles(detections);
+                } else {
+                    this.facesDetected = 0;
+                    this.detectedFaces = []; // Clear if no faces
+                }
+                
+                // Calculate FPS
+                const endTime = performance.now();
+                const frameTime = endTime - startTime;
+                // Add the THROTTLE_MS wait time to the actual processing time to get realistic apparent FPS
+                this.fps = Math.round(1000 / (frameTime + this.THROTTLE_MS));
+                
+            }, this.THROTTLE_MS);
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                if (this.cameraActive) this.setupCanvas();
+            });
+        },
+        
+        updateLiveTiles(detections) {
+            const video = this.$refs.video;
+            const now = Date.now();
+            
+            // First, remove old faces that haven't been seen in STAY_TIME_MS
+            this.detectedFaces = this.detectedFaces.filter(f => now - f.lastSeen < this.STAY_TIME_MS);
+            
+            for (let i = 0; i < detections.length; i++) {
+                const det = detections[i];
+                
+                // 1. Check against known backend embeddings
+                let matchedKnown = null;
+                let minKnownDist = 999;
+                for(let k of this.knownEmbeddings) {
+                    const dist = faceapi.euclideanDistance(det.descriptor, k.descriptor);
+                    if(dist < this.MATCH_THRESHOLD && dist < minKnownDist) {
+                        minKnownDist = dist;
+                        matchedKnown = k;
+                    }
+                }
+                
+                // 2. Check if we already have this face actively on screen
+                let existingFace = null;
+                let minScreenDist = 999;
+                for(let j=0; j<this.detectedFaces.length; j++) {
+                    const f = this.detectedFaces[j];
+                    
+                    // If the backend says this is customer X, and we already have a tile for customer X, it's the same person!
+                    if (matchedKnown && f.customer && f.customer.id === matchedKnown.customer_id) {
+                        existingFace = f;
+                        break;
+                    }
+                    
+                    // Otherwise, rely on raw visual similarity to an existing tile
+                    const dist = faceapi.euclideanDistance(det.descriptor, f.descriptor);
+                    if (dist < this.MATCH_THRESHOLD && dist < minScreenDist) {
+                        minScreenDist = dist;
+                        existingFace = f;
+                    }
+                }
+                
+                if (existingFace) {
+                    // Update last seen so they stay on screen
+                    existingFace.lastSeen = now;
+                    // If they were previously unknown but we now recognize them, update the tile
+                    if (matchedKnown && existingFace.status !== 'known') {
+                        existingFace.status = 'known';
+                        existingFace.customer = matchedKnown;
+                        // Replace the thumbnail with the latest one for better quality optionally
+                    }
+                } else if (this.detectedFaces.length < 10) {
+                    // It's a brand new face
+                    // Extract face crop using original video coordinates
+                    const box = det.detection.box;
+                    const cropCanvas = document.createElement('canvas');
+                    
+                    // The bounding box is relative to the internal video dimensions (e.g. 640x480)
+                    // We don't need scaleX/scaleY here because faceapi detections are relative to the video intrinsic size!
+                    // Wait, earlier we passed faceapi.resizeResults(detections, displaySize) for DRAWING,
+                    // but 'det.detection.box' is still in the original intrinsic resolution.
+                    const pad = 30; // 30px padding around face
+                    const cx = Math.max(0, box.x - pad);
+                    const cy = Math.max(0, box.y - pad);
+                    const cw = Math.min(video.videoWidth - cx, box.width + pad*2);
+                    const ch = Math.min(video.videoHeight - cy, box.height + pad*2);
+                    
+                    cropCanvas.width = cw;
+                    cropCanvas.height = ch;
+                    const cropCtx = cropCanvas.getContext('2d');
+                    cropCtx.drawImage(video, cx, cy, cw, ch, 0, 0, cw, ch);
+                    
+                    const base64Image = cropCanvas.toDataURL('image/jpeg', 0.8);
+
+                    const newFaceObj = {
+                        id: 'face_' + Date.now() + '_' + i,
+                        descriptor: det.descriptor,
+                        base64Image: base64Image,
+                        lastSeen: now,
+                        status: matchedKnown ? 'known' : 'unknown',
+                        customer: matchedKnown || null,
+                        familyName: '',
+                        displayName: '',
+                        phone: ''
+                    };
+                    
+                    // We prepend it so it appears at the top
+                    this.detectedFaces.unshift(newFaceObj);
+                }
+            }
+        },
+        
+        async registerFace(face, index) {
+            try {
+                const fd = new FormData();
+                fd.append('family_name', face.familyName);
+                fd.append('display_name', face.displayName || '');
+                fd.append('phone', face.phone || '');
+                // Convert Float32Array descriptor to JSON array
+                fd.append('embedding', JSON.stringify(Array.from(face.descriptor)));
+                fd.append('image_data', face.base64Image);
+                
+                const res = await fetch('/vision/register', {
+                    method: 'POST',
+                    body: fd
+                });
+                
+                if(res.ok) {
+                    face.status = 'registered';
+                    // Re-fetch embeddings from backend so they are instantly recognizable
+                    this.fetchKnownEmbeddings();
+                    
+                    // Change their status to known after a brief delay
+                    setTimeout(() => {
+                        face.status = 'known';
+                        face.customer = { family_name: face.familyName, display_name: face.displayName };
+                    }, 2000);
+                } else {
+                    alert('Failed to register face.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error submitting registration.');
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}

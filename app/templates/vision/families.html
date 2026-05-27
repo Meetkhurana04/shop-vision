@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}All Families — {{ settings.APP_NAME }}{% endblock %}
+
+{% block page_heading %}
+<div class="flex items-center gap-3">
+  <a href="/vision" class="flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Vision
+  </a>
+  <span class="text-gray-700">/</span>
+  <h1 class="text-xl font-bold text-white">👨‍👩‍👧 All Families</h1>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="{
+  search: '',
+  names: [{% for item in family_data %}'{{ item.customer.family_name | lower }}'{% if not loop.last %},{% endif %}{% endfor %}],
+  get hasResults() { return this.search === '' || this.names.some(n => n.includes(this.search.toLowerCase())); }
+}">
+
+  <!-- Search Bar -->
+  <div class="max-w-lg mx-auto mb-6">
+    <div class="relative">
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500"
+           fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <input x-model="search" type="text" placeholder="Search family..."
+             class="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white
+                    placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1
+                    focus:ring-indigo-500/50 transition-colors" />
+    </div>
+  </div>
+
+  <!-- Family Grid -->
+  {% if family_data %}
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 max-w-4xl mx-auto">
+    {% for item in family_data %}
+    <a href="/vision/customer/{{ item.customer.id }}"
+       x-show="search === '' || '{{ item.customer.family_name | lower }}'.includes(search.toLowerCase())"
+       x-transition:enter="transition ease-out duration-200"
+       x-transition:enter-start="opacity-0 scale-95"
+       x-transition:enter-end="opacity-100 scale-100"
+       class="block bg-gray-900 border border-gray-700 hover:border-indigo-500/60
+              rounded-2xl p-5 text-center transition-all duration-200 hover:shadow-xl
+              hover:shadow-indigo-900/20 hover:-translate-y-1 group cursor-pointer">
+
+      <!-- Avatar circle with initials -->
+      <div class="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-bold
+                  {% if item.outstanding > 0 %}
+                    bg-red-900/30 border-2 border-red-500/40 text-red-400
+                  {% elif item.outstanding < 0 %}
+                    bg-blue-900/30 border-2 border-blue-500/40 text-blue-400
+                  {% else %}
+                    bg-green-900/30 border-2 border-green-500/40 text-green-400
+                  {% endif %}
+                  group-hover:scale-110 transition-transform">
+        {{ item.customer.family_name[0] | upper }}
+      </div>
+
+      <!-- Family Name -->
+      <p class="font-bold text-white text-sm leading-tight group-hover:text-indigo-300 transition-colors">
+        {{ item.customer.family_name }}
+      </p>
+      {% if item.customer.display_name %}
+        <p class="text-xs text-gray-500 mt-0.5">{{ item.customer.display_name }}</p>
+      {% endif %}
+
+      <!-- Outstanding badge -->
+      <div class="mt-3">
+        {% if item.outstanding > 0 %}
+          <span class="inline-block text-xs font-bold px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">
+            ₹{{ "%.0f"|format(item.outstanding) }} pending
+          </span>
+        {% elif item.outstanding < 0 %}
+          <span class="inline-block text-xs font-bold px-2 py-1 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20">
+            ₹{{ "%.0f"|format(item.outstanding|abs) }} advance
+          </span>
+        {% else %}
+          <span class="inline-block text-xs font-bold px-2 py-1 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">
+            Clear ✓
+          </span>
+        {% endif %}
+      </div>
+
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- No results after search -->
+  <div x-show="search !== '' && !hasResults"
+       x-transition
+       class="text-center py-12 text-gray-500 col-span-full mt-4">
+    <p class="text-lg">No family found matching "<span class="text-white font-semibold" x-text="search"></span>"</p>
+    <button @click="search = ''" class="mt-3 text-indigo-400 hover:text-indigo-300 text-sm underline">Clear search</button>
+  </div>
+
+  {% else %}
+  <!-- Empty state -->
+  <div class="text-center py-20">
+    <div class="text-6xl mb-4">👻</div>
+    <h3 class="text-xl font-bold text-gray-400 mb-2">No families registered yet</h3>
+    <p class="text-gray-500 text-sm mb-6">Go to the Vision camera and register a customer by scanning their face.</p>
+    <a href="/vision"
+       class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3
+              rounded-xl font-semibold transition-colors">
+      📷 Open Camera
+    </a>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

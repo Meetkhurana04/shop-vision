@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="reportsManager()">
+  
+  <div class="sm:flex sm:items-center sm:justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Reports & Analytics</h1>
+      <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">View sales trends, expenses, and export your data.</p>
+    </div>
+    <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none flex space-x-3">
+      <button type="button" @click="exportData('csv')" :disabled="isExporting"
+        class="inline-flex items-center justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto disabled:opacity-50">
+        <svg x-show="!isExporting || exportFormat !== 'csv'" class="-ml-1 mr-2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <svg x-show="isExporting && exportFormat === 'csv'" class="animate-spin -ml-1 mr-2 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Export CSV
+      </button>
+      <button type="button" @click="exportData('pdf')" :disabled="isExporting"
+        class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto disabled:opacity-50">
+        <svg x-show="!isExporting || exportFormat !== 'pdf'" class="-ml-1 mr-2 h-5 w-5 text-indigo-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+        </svg>
+        <svg x-show="isExporting && exportFormat === 'pdf'" class="animate-spin -ml-1 mr-2 h-5 w-5 text-indigo-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Export PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="mb-8 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 flex flex-wrap gap-4 items-end">
+    <div>
+      <label for="start_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Date</label>
+      <input type="date" x-model="startDate" id="start_date" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+    </div>
+    <div>
+      <label for="end_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">End Date</label>
+      <input type="date" x-model="endDate" id="end_date" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+    </div>
+    <div>
+      <button type="button" @click="refreshAll()" class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+        <svg class="-ml-1 mr-2 h-5 w-5 text-gray-400" :class="{ 'animate-spin': isRefreshing }" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Refresh Data
+      </button>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 gap-8 lg:grid-cols-2 mb-8">
+    <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4 h-80 relative">
+      <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white mb-4">Sales Trend</h3>
+      <div x-show="isRefreshing" class="absolute inset-0 z-10 bg-white/50 dark:bg-gray-800/50 flex items-center justify-center backdrop-blur-[1px]">
+        <svg class="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+      </div>
+      <canvas id="salesLineChart"></canvas>
+    </div>
+    
+    <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg p-4 h-80 relative">
+      <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white mb-4">Expense Breakdown</h3>
+      <div x-show="isRefreshing" class="absolute inset-0 z-10 bg-white/50 dark:bg-gray-800/50 flex items-center justify-center backdrop-blur-[1px]">
+        <svg class="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+      </div>
+      <div class="h-64 flex justify-center">
+        <canvas id="expensesPieChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- HTMX Summary Container -->
+  <div id="report-summary-container">
+    <!-- Loaded via HTMX -->
+    <div class="flex justify-center p-8">
+      <svg class="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('reportsManager', () => ({
+        startDate: '{{ default_start }}',
+        endDate: '{{ default_end }}',
+        isRefreshing: false,
+        isExporting: false,
+        exportFormat: null,
+        
+        salesChart: null,
+        expensesChart: null,
+        
+        init() {
+            // Initial load
+            this.refreshAll();
+        },
+        
+        async refreshAll() {
+            this.isRefreshing = true;
+            
+            // 1. Trigger HTMX update for the summary partial
+            const summaryUrl = `/reports/partials/summary?start_date=${this.startDate}&end_date=${this.endDate}`;
+            htmx.ajax('GET', summaryUrl, {target: '#report-summary-container'});
+            
+            // 2. Fetch chart data via JSON and update Chart.js
+            try {
+                const response = await fetch(`/reports/data/charts?start_date=${this.startDate}&end_date=${this.endDate}`);
+                const data = await response.json();
+                this.updateCharts(data);
+            } catch (err) {
+                console.error("Failed to load chart data", err);
+            } finally {
+                this.isRefreshing = false;
+            }
+        },
+        
+        updateCharts(data) {
+            // Sales Line Chart
+            const salesCtx = document.getElementById('salesLineChart').getContext('2d');
+            if (this.salesChart) this.salesChart.destroy();
+            
+            this.salesChart = new Chart(salesCtx, {
+                type: 'line',
+                data: {
+                    labels: data.sales.labels,
+                    datasets: [{
+                        label: 'Sales',
+                        data: data.sales.data,
+                        borderColor: '#4f46e5',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+            
+            // Expenses Pie Chart
+            const expCtx = document.getElementById('expensesPieChart').getContext('2d');
+            if (this.expensesChart) this.expensesChart.destroy();
+            
+            this.expensesChart = new Chart(expCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.expenses.labels,
+                    datasets: [{
+                        data: data.expenses.data,
+                        backgroundColor: [
+                            '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right' }
+                    }
+                }
+            });
+        },
+        
+        exportData(format) {
+            this.isExporting = true;
+            this.exportFormat = format;
+            
+            // Use Web Worker so main thread isn't blocked by large data manipulation
+            const worker = new Worker('/static/js/export_worker.js');
+            
+            worker.onmessage = (e) => {
+                if (e.data.status === 'success') {
+                    // Create object URL and trigger download
+                    // The worker passes back the text/blob content
+                    const blob = new Blob([e.data.content], { type: e.data.mimeType });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = e.data.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    
+                    this.isExporting = false;
+                    this.exportFormat = null;
+                } else if (e.data.status === 'error') {
+                    console.error("Export failed:", e.data.error);
+                    alert("Export failed: " + e.data.error);
+                    this.isExporting = false;
+                    this.exportFormat = null;
+                }
+            };
+            
+            worker.onerror = (err) => {
+                console.error("Worker error:", err);
+                alert("Export worker error");
+                this.isExporting = false;
+                this.exportFormat = null;
+            };
+            
+            worker.postMessage({
+                format: format,
+                url: `/reports/export/data?start_date=${this.startDate}&end_date=${this.endDate}`
+            });
+        }
+    }));
+});
+</script>
+{% endblock %}

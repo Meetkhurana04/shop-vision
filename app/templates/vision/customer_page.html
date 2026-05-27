@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block title %}{{ customer.family_name }} Family — {{ settings.APP_NAME }}{% endblock %}
+
+{% block page_heading %}
+<div class="flex items-center gap-3 flex-wrap">
+  <a href="/vision" class="flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+    </svg>
+    Vision
+  </a>
+  <span class="text-gray-700">/</span>
+  <span class="font-bold text-white text-lg">{{ customer.family_name }} Family</span>
+  {% if customer.phone %}
+    <span class="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded-full">📞 {{ customer.phone }}</span>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hidden camera for silent auto-snapshot -->
+<video id="snapshot-video" autoplay muted playsinline
+       class="absolute w-1 h-1 opacity-0 pointer-events-none" style="top:-100px"></video>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Main Alpine.js component wraps everything                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="max-w-lg mx-auto space-y-5 pb-24"
+     x-data="customerPage()"
+     x-init="init()"
+     @alpine:destroy="cleanup()">
+
+  <!-- ── 1. Stats Dashboard Card ───────────────────────────── -->
+  <div class="w-4/5 mx-auto">
+    {% include "vision/partials/customer_stats.html" %}
+  </div>
+
+  <!-- ── 2. Quick Suggestions (top 3 used amounts) ────────── -->
+  {% if suggestions %}
+  <div class="w-4/5 mx-auto">
+    <p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Quick Add ⚡</p>
+    <div class="flex gap-2">
+      {% for s in suggestions %}
+      <button onclick="document.querySelector('[x-data]').__x.$data.display = '{{ s }}'"
+              class="flex-1 py-2 px-3 bg-gray-800 hover:bg-indigo-700 text-gray-300 hover:text-white
+                     border border-gray-700 hover:border-indigo-500 rounded-xl text-sm font-bold
+                     transition-all duration-150 active:scale-95">
+        ₹{{ s }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── 3. Calculator ─────────────────────────────────────── -->
+  <div class="w-4/5 mx-auto bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
+
+    <!-- Display -->
+    <div class="bg-gray-950 px-5 py-4 flex items-center justify-between border-b border-gray-800">
+      <span class="text-4xl font-mono font-bold text-white tracking-wider" x-text="'₹ ' + display">₹ 0</span>
+      <button @click="pressBackspace()"
+              class="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-xl p-3 transition-colors active:scale-90">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-8.172a2 2 0 00-1.414.586L3 12z"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Digit Grid 3×3 -->
+    <div class="grid grid-cols-3 gap-2 p-3">
+      {% for digit in [7, 8, 9, 4, 5, 6, 1, 2, 3] %}
+      <button @click="pressDigit('{{ digit }}')"
+              class="bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-white text-2xl font-semibold
+                     rounded-xl py-5 transition-all duration-100 active:scale-95 select-none">
+        {{ digit }}
+      </button>
+      {% endfor %}
+      <!-- C  |  0  |  00 -->
+      <button @click="pressClear()"
+              class="bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-orange-400 text-2xl font-semibold
+                     rounded-xl py-5 transition-all active:scale-95 select-none">C</button>
+      <button @click="pressDigit('0')"
+              class="bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-white text-2xl font-semibold
+                     rounded-xl py-5 transition-all active:scale-95 select-none">0</button>
+      <button @click="pressDoubleZero()"
+              class="bg-gray-800 hover:bg-gray-700 active:bg-gray-600 text-white text-2xl font-semibold
+                     rounded-xl py-5 transition-all active:scale-95 select-none">00</button>
+    </div>
+
+    <!-- Udhaar / Payment -->
+    <div class="grid grid-cols-2 gap-2 p-3 pt-0">
+      <button @click="submitTransaction('udhaar')"
+              :disabled="display === '0' || isSubmitting"
+              class="py-5 rounded-xl text-xl font-bold transition-all active:scale-95 shadow-lg select-none
+                     bg-red-600 hover:bg-red-500 active:bg-red-700 text-white
+                     disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+        <span>🔴</span>
+        <span x-show="!isSubmitting">Udhaar</span>
+        <span x-show="isSubmitting" class="text-sm animate-pulse">Saving…</span>
+      </button>
+      <button @click="submitTransaction('payment')"
+              :disabled="display === '0' || isSubmitting"
+              class="py-5 rounded-xl text-xl font-bold transition-all active:scale-95 shadow-lg select-none
+                     bg-green-600 hover:bg-green-500 active:bg-green-700 text-white
+                     disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+        <span>🟢</span>
+        <span x-show="!isSubmitting">Payment</span>
+        <span x-show="isSubmitting" class="text-sm animate-pulse">Saving…</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── 4. Transaction Table ──────────────────────────────── -->
+  <div class="w-4/5 mx-auto">
+    <h3 class="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-widest">Transaction History</h3>
+    {% include "vision/partials/transaction_table.html" %}
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Fixed Bottom Footer — 3 icons                              -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="fixed bottom-0 left-0 right-0 z-50 bg-gray-950/95 backdrop-blur border-t border-gray-800
+            flex items-center justify-around h-16 sm:hidden">
+  <!-- Camera → /vision -->
+  <a href="/vision" class="flex flex-col items-center gap-1 text-gray-500 hover:text-indigo-400 transition-colors"
+     onclick="stopCamera()">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+    </svg>
+    <span class="text-xs">Camera</span>
+  </a>
+  <!-- All Families -->
+  <a href="/vision/customers" class="flex flex-col items-center gap-1 text-gray-500 hover:text-indigo-400 transition-colors"
+     onclick="stopCamera()">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+    <span class="text-xs">Families</span>
+  </a>
+  <!-- Refresh -->
+  <button onclick="location.reload()" class="flex flex-col items-center gap-1 text-gray-500 hover:text-indigo-400 transition-colors">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg>
+    <span class="text-xs">Refresh</span>
+  </button>
+</div>
+
+<!-- Desktop footer strip -->
+<div class="hidden sm:flex fixed bottom-0 left-0 right-0 z-50 bg-gray-950/90 backdrop-blur border-t border-gray-800
+            items-center justify-center gap-8 h-12 text-sm text-gray-500">
+  <a href="/vision" onclick="stopCamera()" class="hover:text-white transition-colors flex items-center gap-1">
+    📷 Live Camera
+  </a>
+  <a href="/vision/customers" onclick="stopCamera()" class="hover:text-white transition-colors flex items-center gap-1">
+    👨‍👩‍👧 All Families
+  </a>
+  <button onclick="location.reload()" class="hover:text-white transition-colors flex items-center gap-1">
+    🔄 Refresh
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Toast                                                       -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="txn-toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-[60] pointer-events-none"
+     style="display:none;">
+  <div class="bg-gray-900 border border-gray-700 text-white px-5 py-3 rounded-2xl shadow-2xl
+              text-sm font-medium flex items-center gap-3 min-w-[200px] justify-center">
+    <span id="txn-toast-icon" class="text-xl">✓</span>
+    <span id="txn-toast-msg">Saved</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Lightbox overlay                                            -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="lightbox" onclick="closeLightbox()"
+     class="fixed inset-0 z-[70] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+     style="display:none;">
+  <img id="lightbox-img" src="" class="max-w-full max-h-full rounded-xl shadow-2xl object-contain" />
+  <button onclick="closeLightbox()" class="absolute top-4 right-4 text-white/80 hover:text-white text-3xl font-light">✕</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Edit Modal                                                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="edit-modal" class="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+     style="display:none;" onclick="if(event.target===this)closeEditModal()">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+    <h3 class="text-lg font-bold text-white mb-4">✏️ Edit Transaction</h3>
+    <form id="edit-form" onsubmit="submitEdit(event)">
+      <input type="hidden" id="edit-txn-id" value="">
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-gray-400 uppercase tracking-wider">Amount (₹)</label>
+          <input type="number" id="edit-amount" min="1" required
+                 class="mt-1 w-full bg-gray-800 border border-gray-600 rounded-xl px-4 py-3 text-white text-xl font-bold
+                        focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 uppercase tracking-wider">Type</label>
+          <div class="mt-1 grid grid-cols-2 gap-2">
+            <label class="cursor-pointer">
+              <input type="radio" id="edit-type-udhaar" name="edit-type" value="udhaar" class="sr-only peer">
+              <div class="py-3 rounded-xl text-center font-bold border-2 border-gray-700
+                          peer-checked:border-red-500 peer-checked:bg-red-600/20 peer-checked:text-red-400
+                          text-gray-500 transition-all">
+                🔴 Udhaar
+              </div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="radio" id="edit-type-payment" name="edit-type" value="payment" class="sr-only peer">
+              <div class="py-3 rounded-xl text-center font-bold border-2 border-gray-700
+                          peer-checked:border-green-500 peer-checked:bg-green-600/20 peer-checked:text-green-400
+                          text-gray-500 transition-all">
+                🟢 Payment
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-3 mt-5">
+        <button type="button" onclick="closeEditModal()"
+                class="flex-1 py-3 rounded-xl border border-gray-600 text-gray-400 hover:text-white hover:border-gray-500 transition-colors font-semibold">
+          Cancel
+        </button>
+        <button type="submit"
+                class="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-colors">
+          Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Delete Confirm Modal                                        -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="delete-modal" class="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+     style="display:none;" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center">
+    <div class="text-4xl mb-3">🗑️</div>
+    <h3 class="text-lg font-bold text-white mb-2">Delete Transaction?</h3>
+    <p class="text-sm text-gray-400 mb-5">This action cannot be undone.</p>
+    <input type="hidden" id="delete-txn-id" value="">
+    <div class="flex gap-3">
+      <button onclick="closeDeleteModal()"
+              class="flex-1 py-3 rounded-xl border border-gray-600 text-gray-400 hover:text-white font-semibold transition-colors">
+        Cancel
+      </button>
+      <button onclick="submitDelete()"
+              class="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold transition-colors">
+        Yes, Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CUSTOMER_ID = {{ customer.id }};
+
+  // ── Lightbox ──────────────────────────────────────────────────
+  function openLightbox(src) {
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox').style.display = 'none';
+    document.body.style.overflow = '';
+  }
+
+  // ── Edit Modal ────────────────────────────────────────────────
+  function openEditModal(txnId, amount, type) {
+    document.getElementById('edit-txn-id').value = txnId;
+    document.getElementById('edit-amount').value = amount;
+    document.getElementById('edit-type-' + type).checked = true;
+    document.getElementById('edit-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+  function closeEditModal() {
+    document.getElementById('edit-modal').style.display = 'none';
+    document.body.style.overflow = '';
+  }
+  async function submitEdit(e) {
+    e.preventDefault();
+    const txnId  = document.getElementById('edit-txn-id').value;
+    const amount = document.getElementById('edit-amount').value;
+    const type   = document.querySelector('input[name="edit-type"]:checked')?.value;
+    if (!type) return;
+
+    const fd = new FormData();
+    fd.append('amount', amount);
+    fd.append('txn_type', type);
+
+    const res = await fetch(`/vision/customer/${CUSTOMER_ID}/transaction/${txnId}/edit`, {
+      method: 'POST', body: fd
+    });
+    if (res.ok) {
+      const rowHtml = await res.text();
+      const existingRow = document.getElementById('txn-' + txnId);
+      if (existingRow) {
+        const tmp = document.createElement('tbody');
+        tmp.innerHTML = rowHtml;
+        existingRow.replaceWith(tmp.firstElementChild);
+      }
+      closeEditModal();
+      showToast('edit', amount);
+      htmx.trigger(document.body, 'transactionAdded');
+    }
+  }
+
+  // ── Delete Modal ──────────────────────────────────────────────
+  function openDeleteModal(txnId) {
+    document.getElementById('delete-txn-id').value = txnId;
+    document.getElementById('delete-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDeleteModal() {
+    document.getElementById('delete-modal').style.display = 'none';
+    document.body.style.overflow = '';
+  }
+  async function submitDelete() {
+    const txnId = document.getElementById('delete-txn-id').value;
+    const res   = await fetch(`/vision/customer/${CUSTOMER_ID}/transaction/${txnId}/delete`, {
+      method: 'POST'
+    });
+    if (res.ok) {
+      const row = document.getElementById('txn-' + txnId);
+      if (row) {
+        row.style.transition = 'all 0.3s';
+        row.style.opacity = '0';
+        row.style.transform = 'translateX(-20px)';
+        setTimeout(() => row.remove(), 300);
+      }
+      closeDeleteModal();
+      showToast('delete', '');
+      htmx.trigger(document.body, 'transactionAdded');
+    }
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────
+  function showToast(type, amount) {
+    const toast  = document.getElementById('txn-toast');
+    const msgEl  = document.getElementById('txn-toast-msg');
+    const iconEl = document.getElementById('txn-toast-icon');
+    const msgs = {
+      udhaar:  { icon: '🔴', msg: `₹${amount} Udhaar recorded` },
+      payment: { icon: '🟢', msg: `₹${amount} Payment received` },
+      edit:    { icon: '✏️', msg: `Transaction updated` },
+      delete:  { icon: '🗑️', msg: `Transaction deleted` },
+    };
+    const m = msgs[type] || { icon: '✓', msg: 'Done' };
+    iconEl.textContent = m.icon;
+    msgEl.textContent  = m.msg;
+    toast.style.display = 'flex';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.display = 'none'; }, 2500);
+  }
+
+  // ── Camera stop (called on nav away) ─────────────────────────
+  let _cameraStream = null;
+  function stopCamera() {
+    if (_cameraStream) {
+      _cameraStream.getTracks().forEach(t => t.stop());
+      _cameraStream = null;
+    }
+  }
+  window.addEventListener('beforeunload', stopCamera);
+  window.addEventListener('pagehide', stopCamera);
+
+  // ── Alpine.js Component ───────────────────────────────────────
+  function customerPage() {
+    return {
+      display: '0',
+      isSubmitting: false,
+
+      async init() {
+        try {
+          _cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+          document.getElementById('snapshot-video').srcObject = _cameraStream;
+        } catch (e) {
+          console.warn('Camera unavailable for snapshots:', e.message);
+        }
+      },
+
+      cleanup() {
+        stopCamera();
+      },
+
+      // Calculator
+      pressDigit(d) {
+        if (this.display.length >= 7) return;
+        this.display = (this.display === '0') ? d : this.display + d;
+      },
+      pressDoubleZero() {
+        if (this.display === '0' || this.display.length >= 6) return;
+        this.display += '00';
+      },
+      pressBackspace() {
+        this.display = this.display.length <= 1 ? '0' : this.display.slice(0, -1);
+      },
+      pressClear() {
+        this.display = '0';
+      },
+
+      // Snapshot
+      captureSnapshot() {
+        const v = document.getElementById('snapshot-video');
+        if (!_cameraStream || v.videoWidth === 0) return null;
+        const c = document.createElement('canvas');
+        c.width = v.videoWidth; c.height = v.videoHeight;
+        c.getContext('2d').drawImage(v, 0, 0);
+        return c.toDataURL('image/jpeg', 0.85);
+      },
+
+      // Submit
+      async submitTransaction(type) {
+        if (this.display === '0' || this.isSubmitting) return;
+        this.isSubmitting = true;
+        const amount   = this.display;
+        const snapshot = this.captureSnapshot();
+
+        const fd = new FormData();
+        fd.append('amount', amount);
+        fd.append('txn_type', type);
+        if (snapshot) fd.append('snapshot_image', snapshot);
+
+        try {
+          const res = await fetch(`/vision/customer/${CUSTOMER_ID}/add`, { method: 'POST', body: fd });
+          if (res.ok) {
+            const html  = await res.text();
+            const tbody = document.getElementById('txn-tbody');
+            if (tbody) {
+              const tmp = document.createElement('tbody');
+              tmp.innerHTML = html;
+              tbody.insertBefore(tmp.firstElementChild, tbody.firstChild);
+            }
+            showToast(type, amount);
+            this.display = '0';
+            htmx.trigger(document.body, 'transactionAdded');
+          } else {
+            alert('Failed to save. Please try again.');
+          }
+        } catch (err) {
+          console.error(err);
+          alert('Network error.');
+        } finally {
+          this.isSubmitting = false;
+        }
+      },
+    };
+  }
+</script>
+{% endblock %}

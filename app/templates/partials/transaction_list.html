@@ -1,0 +1,9 @@
+{% for txn in transactions %}
+  {% include "partials/transaction_row.html" %}
+{% else %}
+  <tr>
+    <td colspan="5" class="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+      No transactions found.
+    </td>
+  </tr>
+{% endfor %}
