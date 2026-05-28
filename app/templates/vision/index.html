@@ -152,50 +152,68 @@ document.addEventListener('alpine:init', () => {
         stream: null,
         facesDetected: 0,
         fps: 0,
-        lastFrameTime: 0,
-        detectionInterval: null,
-        detectedFaces: [], // Array to hold unique faces shown on screen
-        knownEmbeddings: [], // Fetched from backend
-        
-        // Settings
-        THROTTLE_MS: 700, // Detect every 700ms to save CPU
-        MATCH_THRESHOLD: 0.5, // Euclidean distance threshold
-        STAY_TIME_MS: 10 * 60 * 1000, // Keep tile for 10 minutes
-        
+        _isDetecting: false,
+        _loopTimer: null,
+        detectedFaces: [],
+        knownEmbeddings: [],
+
+        // ── Tuning knobs ──────────────────────────────────────────────
+        INPUT_SIZE: 224,          // 224 = 3-4x faster than default 416
+        SCORE_THRESHOLD: 0.55,    // Lower = detects faster (catches partial faces)
+
+        // TWO separate distance thresholds:
+        //   TILE_DIST   — looser, used to match a face to an EXISTING tile on screen.
+        //                 Must be loose to survive natural head movement & lighting.
+        //   KNOWN_DIST  — tighter, used to match against the DB known embeddings.
+        //                 Prevents wrong customer being labelled.
+        TILE_DIST: 0.52,
+        KNOWN_DIST: 0.44,
+        CAND_DIST: 0.52,          // Within candidate buffer merging
+
+        // Stability: how many consecutive frames before a tile is created.
+        // KNOWN faces → 1 frame (instant: we already know who they are).
+        // UNKNOWN faces → 2 frames (fast but avoids single-frame ghosts).
+        STAB_KNOWN: 1,
+        STAB_UNKNOWN: 2,
+
+        // EMA smoothing on stored descriptors (prevents stale embeddings)
+        EMA_ALPHA: 0.55,
+
+        // Loop speed & tile lifetime
+        THROTTLE_MS: 120,
+        STAY_TIME_MS: 10 * 60 * 1000,
+        MAX_TILES: 20,
+
+        // Internal candidate buffer (faces accumulating stability frames)
+        _candidates: [],
+
         async init() {
             try {
-                // Fetch known embeddings from backend in parallel
                 this.fetchKnownEmbeddings();
-                
-                // Wait for faceapi script to load if it hasn't yet
-                while(typeof faceapi === 'undefined') {
-                    await new Promise(resolve => setTimeout(resolve, 100));
+
+                while (typeof faceapi === 'undefined') {
+                    await new Promise(r => setTimeout(r, 100));
                 }
-                
-                // We use jsdelivr to fetch the models from the github repo directly
+
                 const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-                
-                // Load tiny face detector (faster for low-end devices than SSD Mobilenet)
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
-                
+
                 this.modelsLoaded = true;
                 this.statusMessage = 'Models loaded. Starting camera...';
                 await this.startCamera();
-                
             } catch (err) {
-                console.error("Error initializing Vision AI:", err);
+                console.error('Error initializing Vision AI:', err);
                 this.statusMessage = 'Error loading AI models. Please check console.';
             }
         },
-        
+
         async fetchKnownEmbeddings() {
             try {
                 const res = await fetch('/vision/embeddings');
-                if(res.ok) {
+                if (res.ok) {
                     const data = await res.json();
-                    // Convert standard JS arrays to Float32Array for face-api.js comparison
                     this.knownEmbeddings = data.map(k => ({
                         ...k,
                         descriptor: new Float32Array(k.embedding)
@@ -203,51 +221,45 @@ document.addEventListener('alpine:init', () => {
                     console.log(`Loaded ${this.knownEmbeddings.length} known faces.`);
                 }
             } catch (err) {
-                console.error("Failed to fetch embeddings", err);
+                console.error('Failed to fetch embeddings', err);
             }
         },
-        
+
         async startCamera() {
             try {
-                this.stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' } // Prefer back camera
+                this.stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
                 });
-                
                 const video = this.$refs.video;
                 video.srcObject = this.stream;
-                
-                // Wait for video to actually start playing
                 video.addEventListener('play', () => {
                     this.isLoading = false;
                     this.cameraActive = true;
                     this.setupCanvas();
-                    this.startDetectionLoop();
+                    this._scheduleDetection();
+                    window.addEventListener('resize', () => { if (this.cameraActive) this.setupCanvas(); });
                 });
-                
             } catch (err) {
-                console.error("Camera error:", err);
+                console.error('Camera error:', err);
                 this.statusMessage = 'Camera access denied or unavailable.';
             }
         },
-        
+
         stopCamera() {
             if (this.stream) {
-                this.stream.getTracks().forEach(track => track.stop());
+                this.stream.getTracks().forEach(t => t.stop());
                 this.stream = null;
             }
-            if (this.detectionInterval) {
-                clearInterval(this.detectionInterval);
-            }
+            if (this._loopTimer) clearTimeout(this._loopTimer);
+            this._isDetecting = false;
             this.cameraActive = false;
             this.facesDetected = 0;
             this.fps = 0;
-            
-            // Clear canvas
-            const canvas = this.$refs.canvas;
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            this._candidates = [];
+            const ctx = this.$refs.canvas.getContext('2d');
+            ctx.clearRect(0, 0, this.$refs.canvas.width, this.$refs.canvas.height);
         },
-        
+
         toggleCamera() {
             if (this.cameraActive) {
                 this.stopCamera();
@@ -257,164 +269,246 @@ document.addEventListener('alpine:init', () => {
                 this.startCamera();
             }
         },
-        
+
         setupCanvas() {
             const video = this.$refs.video;
             const canvas = this.$refs.canvas;
-            
-            // Match canvas dimensions to video
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            
-            // Fix display size to match CSS layout
-            const displaySize = { width: video.clientWidth, height: video.clientHeight };
-            faceapi.matchDimensions(canvas, displaySize);
+            faceapi.matchDimensions(canvas, { width: video.clientWidth, height: video.clientHeight });
         },
-        
-        startDetectionLoop() {
+
+        _scheduleDetection() {
+            if (!this.cameraActive) return;
+            this._loopTimer = setTimeout(() => this._runDetection(), this.THROTTLE_MS);
+        },
+
+        async _runDetection() {
             const video = this.$refs.video;
-            const canvas = this.$refs.canvas;
-            
-            this.detectionInterval = setInterval(async () => {
-                if (!this.modelsLoaded || !this.cameraActive || video.paused || video.ended) return;
-                
-                const startTime = performance.now();
-                
-                // Detect faces
-                // We use TinyFaceDetector for performance
-                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+            if (!this.modelsLoaded || !this.cameraActive || video.paused || video.ended || this._isDetecting) {
+                this._scheduleDetection();
+                return;
+            }
+
+            this._isDetecting = true;
+            const t0 = performance.now();
+
+            try {
+                const options = new faceapi.TinyFaceDetectorOptions({
+                    inputSize: this.INPUT_SIZE,
+                    scoreThreshold: this.SCORE_THRESHOLD
+                });
+
+                const detections = await faceapi
+                    .detectAllFaces(video, options)
                     .withFaceLandmarks()
                     .withFaceDescriptors();
-                    
+
                 const displaySize = { width: video.clientWidth, height: video.clientHeight };
-                
-                // Clear previous boxes
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
+                const ctx = this.$refs.canvas.getContext('2d');
+                ctx.clearRect(0, 0, this.$refs.canvas.width, this.$refs.canvas.height);
+
                 if (detections.length > 0) {
-                    // Resize results to match display
-                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                    
-                    // Draw boxes
-                    faceapi.draw.drawDetections(canvas, resizedDetections);
-                    
-                    // Update state
+                    const resized = faceapi.resizeResults(detections, displaySize);
+                    this._drawBoxes(ctx, resized);
                     this.facesDetected = detections.length;
-                    
-                    // Add dummy data to right panel to show layout works
-                    // In Phase 8B, we will process and crop faces properly.
-                    this.updateLiveTiles(detections);
+                    this._process(detections, video);
                 } else {
                     this.facesDetected = 0;
-                    this.detectedFaces = []; // Clear if no faces
+                    this._candidates = []; // reset buffer when nobody in frame
                 }
-                
-                // Calculate FPS
-                const endTime = performance.now();
-                const frameTime = endTime - startTime;
-                // Add the THROTTLE_MS wait time to the actual processing time to get realistic apparent FPS
-                this.fps = Math.round(1000 / (frameTime + this.THROTTLE_MS));
-                
-            }, this.THROTTLE_MS);
-            
-            // Handle window resize
-            window.addEventListener('resize', () => {
-                if (this.cameraActive) this.setupCanvas();
+
+                // Expire old tiles
+                const now = Date.now();
+                this.detectedFaces = this.detectedFaces.filter(f => now - f.lastSeen < this.STAY_TIME_MS);
+
+                const elapsed = performance.now() - t0;
+                this.fps = Math.round(1000 / (elapsed + this.THROTTLE_MS));
+            } catch (e) {
+                console.warn('Detection frame error:', e);
+            }
+
+            this._isDetecting = false;
+            this._scheduleDetection();
+        },
+
+        _drawBoxes(ctx, resized) {
+            resized.forEach(det => {
+                const { x, y, width, height } = det.detection.box;
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#6366f1';
+                ctx.shadowBlur = 10;
+                ctx.strokeRect(x, y, width, height);
+                ctx.shadowBlur = 0;
             });
         },
-        
-        updateLiveTiles(detections) {
-            const video = this.$refs.video;
-            const now = Date.now();
-            
-            // First, remove old faces that haven't been seen in STAY_TIME_MS
-            this.detectedFaces = this.detectedFaces.filter(f => now - f.lastSeen < this.STAY_TIME_MS);
-            
-            for (let i = 0; i < detections.length; i++) {
-                const det = detections[i];
-                
-                // 1. Check against known backend embeddings
-                let matchedKnown = null;
-                let minKnownDist = 999;
-                for(let k of this.knownEmbeddings) {
-                    const dist = faceapi.euclideanDistance(det.descriptor, k.descriptor);
-                    if(dist < this.MATCH_THRESHOLD && dist < minKnownDist) {
-                        minKnownDist = dist;
-                        matchedKnown = k;
-                    }
-                }
-                
-                // 2. Check if we already have this face actively on screen
-                let existingFace = null;
-                let minScreenDist = 999;
-                for(let j=0; j<this.detectedFaces.length; j++) {
-                    const f = this.detectedFaces[j];
-                    
-                    // If the backend says this is customer X, and we already have a tile for customer X, it's the same person!
-                    if (matchedKnown && f.customer && f.customer.id === matchedKnown.customer_id) {
-                        existingFace = f;
-                        break;
-                    }
-                    
-                    // Otherwise, rely on raw visual similarity to an existing tile
-                    const dist = faceapi.euclideanDistance(det.descriptor, f.descriptor);
-                    if (dist < this.MATCH_THRESHOLD && dist < minScreenDist) {
-                        minScreenDist = dist;
-                        existingFace = f;
-                    }
-                }
-                
-                if (existingFace) {
-                    // Update last seen so they stay on screen
-                    existingFace.lastSeen = now;
-                    // If they were previously unknown but we now recognize them, update the tile
-                    if (matchedKnown && existingFace.status !== 'known') {
-                        existingFace.status = 'known';
-                        existingFace.customer = matchedKnown;
-                        // Replace the thumbnail with the latest one for better quality optionally
-                    }
-                } else if (this.detectedFaces.length < 10) {
-                    // It's a brand new face
-                    // Extract face crop using original video coordinates
-                    const box = det.detection.box;
-                    const cropCanvas = document.createElement('canvas');
-                    
-                    // The bounding box is relative to the internal video dimensions (e.g. 640x480)
-                    // We don't need scaleX/scaleY here because faceapi detections are relative to the video intrinsic size!
-                    // Wait, earlier we passed faceapi.resizeResults(detections, displaySize) for DRAWING,
-                    // but 'det.detection.box' is still in the original intrinsic resolution.
-                    const pad = 30; // 30px padding around face
-                    const cx = Math.max(0, box.x - pad);
-                    const cy = Math.max(0, box.y - pad);
-                    const cw = Math.min(video.videoWidth - cx, box.width + pad*2);
-                    const ch = Math.min(video.videoHeight - cy, box.height + pad*2);
-                    
-                    cropCanvas.width = cw;
-                    cropCanvas.height = ch;
-                    const cropCtx = cropCanvas.getContext('2d');
-                    cropCtx.drawImage(video, cx, cy, cw, ch, 0, 0, cw, ch);
-                    
-                    const base64Image = cropCanvas.toDataURL('image/jpeg', 0.8);
 
-                    const newFaceObj = {
-                        id: 'face_' + Date.now() + '_' + i,
-                        descriptor: det.descriptor,
-                        base64Image: base64Image,
+        // ── Main per-frame logic ──────────────────────────────────────
+        _process(detections, video) {
+            const now = Date.now();
+
+            // Expire stale candidates (not seen for 1.5s)
+            this._candidates = this._candidates.filter(c => now - c.lastSeen < 1500);
+
+            for (const det of detections) {
+                const desc = det.descriptor;
+
+                // ── A. Check against existing TILES first ───────────────
+                // Use loose TILE_DIST so natural movement doesn't break matching
+                const tileHit = this._nearestTile(desc);
+                if (tileHit) {
+                    tileHit.lastSeen = now;
+                    tileHit.descriptor = this._ema(tileHit.descriptor, desc);
+                    // Opportunistically upgrade unknown→known if we now recognise them
+                    if (tileHit.status === 'unknown' || tileHit.status === 'candidate') {
+                        const kb = this._nearestKnown(tileHit.descriptor);
+                        if (kb && !this._tileExistsForCustomer(kb.customer_id)) {
+                            tileHit.status = 'known';
+                            tileHit.customer = kb;
+                        }
+                    }
+                    continue; // tile already handled
+                }
+
+                // ── B. Check candidate buffer ───────────────────────────
+                const knownHit = this._nearestKnown(desc);
+
+                // For KNOWN faces: skip candidate buffer entirely → instant tile
+                if (knownHit) {
+                    if (this._tileExistsForCustomer(knownHit.customer_id)) {
+                        // Already have a tile for this customer; just touch it
+                        const t = this.detectedFaces.find(f => f.customer && f.customer.customer_id === knownHit.customer_id);
+                        if (t) { t.lastSeen = now; t.descriptor = this._ema(t.descriptor, desc); }
+                        continue;
+                    }
+                    // Check candidate buffer (they might be mid-way through stability)
+                    const cand = this._nearestCandidate(desc);
+                    if (cand) {
+                        cand.hitCount++;
+                        cand.lastSeen = now;
+                        cand.descriptor = this._ema(cand.descriptor, desc);
+                    }
+                    // STAB_KNOWN = 1 → promote immediately on first match
+                    if (!cand || cand.hitCount >= this.STAB_KNOWN) {
+                        const c = cand || { descriptor: new Float32Array(desc), hitCount: 1 };
+                        this._promote(c, det, video, now, knownHit);
+                        if (cand) this._candidates = this._candidates.filter(x => x !== cand);
+                    } else if (!cand) {
+                        this._candidates.push({ descriptor: new Float32Array(desc), hitCount: 1, lastSeen: now });
+                    }
+                    continue;
+                }
+
+                // For UNKNOWN faces: need STAB_UNKNOWN frames
+                const cand = this._nearestCandidate(desc);
+                if (cand) {
+                    cand.descriptor = this._ema(cand.descriptor, desc);
+                    cand.hitCount++;
+                    cand.lastSeen = now;
+                    cand._det = det;
+
+                    if (cand.hitCount >= this.STAB_UNKNOWN) {
+                        // Double-check no tile already covers this face (descriptor-wise)
+                        if (!this._nearestTile(cand.descriptor)) {
+                            this._promote(cand, det, video, now, null);
+                        }
+                        this._candidates = this._candidates.filter(x => x !== cand);
+                    }
+                } else {
+                    // First time we see this face — add to candidate buffer
+                    this._candidates.push({
+                        descriptor: new Float32Array(desc),
+                        hitCount: 1,
                         lastSeen: now,
-                        status: matchedKnown ? 'known' : 'unknown',
-                        customer: matchedKnown || null,
-                        familyName: '',
-                        displayName: '',
-                        phone: ''
-                    };
-                    
-                    // We prepend it so it appears at the top
-                    this.detectedFaces.unshift(newFaceObj);
+                        _det: det
+                    });
                 }
             }
         },
-        
+
+        // ── Create a new tile ─────────────────────────────────────────
+        _promote(cand, det, video, now, knownHit) {
+            if (this.detectedFaces.length >= this.MAX_TILES) return;
+
+            // Final duplicate guard: descriptor distance
+            if (this._nearestTile(cand.descriptor)) return;
+
+            // Final duplicate guard: known customer already tiled
+            if (knownHit && this._tileExistsForCustomer(knownHit.customer_id)) return;
+
+            const base64Image = this._cropFace(det, video);
+            this.detectedFaces.unshift({
+                id: 'face_' + now + '_' + Math.random().toString(36).slice(2, 6),
+                descriptor: new Float32Array(cand.descriptor),
+                base64Image,
+                lastSeen: now,
+                status: knownHit ? 'known' : 'unknown',
+                customer: knownHit || null,
+                familyName: '',
+                displayName: '',
+                phone: ''
+            });
+        },
+
+        // ── Lookup helpers ────────────────────────────────────────────
+
+        // Returns the nearest existing tile within TILE_DIST (loose threshold)
+        _nearestTile(desc) {
+            let best = null, bestD = 999;
+            for (const f of this.detectedFaces) {
+                const d = faceapi.euclideanDistance(desc, f.descriptor);
+                if (d < this.TILE_DIST && d < bestD) { bestD = d; best = f; }
+            }
+            return best;
+        },
+
+        // Returns the nearest known embedding within KNOWN_DIST (tight threshold)
+        _nearestKnown(desc) {
+            let best = null, bestD = 999;
+            for (const k of this.knownEmbeddings) {
+                const d = faceapi.euclideanDistance(desc, k.descriptor);
+                if (d < this.KNOWN_DIST && d < bestD) { bestD = d; best = k; }
+            }
+            return best;
+        },
+
+        // Returns the nearest candidate within CAND_DIST
+        _nearestCandidate(desc) {
+            let best = null, bestD = 999;
+            for (const c of this._candidates) {
+                const d = faceapi.euclideanDistance(desc, c.descriptor);
+                if (d < this.CAND_DIST && d < bestD) { bestD = d; best = c; }
+            }
+            return best;
+        },
+
+        // True if a tile already exists for this customer ID
+        _tileExistsForCustomer(customerId) {
+            return this.detectedFaces.some(f => f.customer && f.customer.customer_id === customerId);
+        },
+
+        // EMA blend: 55% old + 45% new
+        _ema(old, fresh) {
+            const a = this.EMA_ALPHA;
+            const out = new Float32Array(old.length);
+            for (let i = 0; i < old.length; i++) out[i] = a * old[i] + (1 - a) * fresh[i];
+            return out;
+        },
+
+        _cropFace(det, video) {
+            const box = det.detection.box;
+            const pad = 28;
+            const cx = Math.max(0, box.x - pad);
+            const cy = Math.max(0, box.y - pad);
+            const cw = Math.min(video.videoWidth - cx, box.width + pad * 2);
+            const ch = Math.min(video.videoHeight - cy, box.height + pad * 2);
+            const crop = document.createElement('canvas');
+            crop.width = cw; crop.height = ch;
+            crop.getContext('2d').drawImage(video, cx, cy, cw, ch, 0, 0, cw, ch);
+            return crop.toDataURL('image/jpeg', 0.8);
+        },
+
         async registerFace(face, index) {
             try {
                 const fd = new FormData();
