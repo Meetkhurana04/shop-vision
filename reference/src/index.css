@@ -1,0 +1,209 @@
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@200,300,400,500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0D0D0D;
+  --color-surface: #1A1A1A;
+  --color-surface-elevated: #242424;
+  --color-card-background: #1E1E1E;
+  --color-divider: #2A2A2A;
+  
+  --color-primary: #1A1A2E;
+  --color-primary-variant: #16213E;
+  --color-secondary: #0F3460;
+  --color-accent: #E94560;
+  
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #B0B0B0;
+  --color-text-hint: #666666;
+  
+  --color-success: #00C853;
+  --color-warning: #FFB300;
+  --color-error: #FF5252;
+  
+  --color-flow-shell-start: #5A45F6;
+  --color-flow-shell-end: #3B2FD1;
+  --color-flow-lime: #B9F46A;
+  --color-flow-lime-dark: #273112;
+
+  --font-heading: 'Clash Display', sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  overflow-x: hidden;
+}
+
+
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.noise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+.receipt-edge {
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: radial-gradient(circle at 5px 0, transparent 5px, var(--color-surface) 6px);
+  background-size: 10px 10px;
+}
+
+.gradient-shell {
+  background: linear-gradient(135deg, var(--color-flow-shell-start), var(--color-flow-shell-end));
+}
+
+.gradient-surface {
+  background: linear-gradient(135deg, var(--color-surface), var(--color-surface-elevated));
+}
+
+/* Touch-friendly elements for mobile */
+@media (max-width: 768px) {
+  button, 
+  a[role="button"],
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  input, 
+  select, 
+  textarea {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+}
+
+/* Prevent text selection on interactive elements */
+button, 
+a {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Improve scrolling on mobile */
+html {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Custom animations - OPTIMAL SPEED */
+@keyframes spin-optimal {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-optimal-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes pulse-optimal {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes float-optimal {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes fade-in-up-optimal {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounce-optimal {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.animate-spin-optimal {
+  animation: spin-optimal 12s linear infinite;
+}
+
+.animate-spin-optimal-reverse {
+  animation: spin-optimal-reverse 9s linear infinite;
+}
+
+.animate-float-optimal {
+  animation: float-optimal 2s ease-in-out infinite;
+}
+
+.animate-fade-in-up-optimal {
+  animation: fade-in-up-optimal 0.5s ease-out forwards;
+}
+
+.animate-pulse-optimal {
+  animation: pulse-optimal 1.5s ease-in-out infinite;
+}
+
+.animate-bounce-optimal {
+  animation: bounce-optimal 0.8s ease-in-out infinite;
+}
+
+
+
+
+/* Add to index.css */
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}

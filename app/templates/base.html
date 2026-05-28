@@ -7,31 +7,49 @@
 
   <title>{% block title %}{{ page_title }} — {{ settings.APP_NAME }}{% endblock %}</title>
 
-  <!-- ── Tailwind CSS via CDN (replace with purged build in Phase 7) ── -->
+  <!-- ── Tailwind CSS via CDN ── -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           colors: {
-            primary:  { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' },
-            income:   '#10b981',
-            expense:  '#f43f5e',
-            surface:  '#1e1e2e',
-            muted:    '#6b7280',
+            background: '#0D0D0D',
+            surface: '#1A1A1A',
+            'surface-elevated': '#242424',
+            'card-background': '#1E1E1E',
+            divider: '#2A2A2A',
+            primary: {
+              DEFAULT: '#5A45F6',
+              light: '#818cf8',
+              dark: '#3B2FD1',
+            },
+            accent: '#E94560',
+            textPrimary: '#FFFFFF',
+            textSecondary: '#B0B0B0',
+            textHint: '#666666',
+            success: '#00C853',
+            warning: '#FFB300',
+            error: '#FF5252',
+            flowLime: '#B9F46A',
           },
           fontFamily: {
-            sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+            sans: ['Geist Mono', 'Inter', 'ui-sans-serif', 'system-ui'],
+            heading: ['Clash Display', 'Inter', 'sans-serif'],
+            mono: ['Geist Mono', 'monospace'],
           },
         }
       }
     }
   </script>
 
-  <!-- ── Google Fonts: Inter ── -->
+  <!-- ── Clash Display Font ── -->
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@200;300;400;500;600;700&display=swap" rel="stylesheet" />
+  
+  <!-- ── Google Fonts: Geist Mono ── -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap" rel="stylesheet" />
 
   <!-- ── HTMX ── -->
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
@@ -45,8 +63,12 @@
   {% block head_extra %}{% endblock %}
 </head>
 
-<body class="h-full bg-gray-950 text-gray-100 font-sans antialiased"
+<body class="h-full bg-background text-textPrimary font-sans antialiased selection:bg-accent selection:text-background relative overflow-x-hidden"
       hx-boost="true">
+
+  <!-- ── 3D Floating Grid & Background Noise Overlay ── -->
+  <div class="noise-overlay"></div>
+  <canvas id="floating-grid" class="fixed inset-0 pointer-events-none z-0" style="opacity: 0.18;"></canvas>
 
   <!-- ── Toast notification container ────────────────────────── -->
   <!-- HTMX partial: app/templates/partials/toast.html targets this -->
@@ -56,15 +78,17 @@
   </div>
 
   <!-- ── Top navigation bar ───────────────────────────────────── -->
-  <nav class="bg-gray-900 border-b border-gray-800 sticky top-0 z-40"
-       x-data="{ mobileOpen: false }">
+  <nav class="bg-surface/85 backdrop-blur-md border-b border-divider sticky top-0 transition-transform duration-300 z-40"
+       x-data="{ mobileOpen: false, shown: true, lastScrollY: 0 }"
+       @scroll.window="shown = (window.scrollY < lastScrollY || window.scrollY < 50); lastScrollY = window.scrollY"
+       :class="shown ? 'translate-y-0' : '-translate-y-full'">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-14">
 
         <!-- Logo / Brand -->
         <a href="/dashboard"
-           class="flex items-center gap-2 text-primary font-bold text-lg tracking-tight">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none"
+           class="flex items-center gap-2 text-white hover:text-primary-light font-heading font-bold text-base tracking-widest uppercase transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" fill="none"
                viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round"
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
@@ -73,7 +97,7 @@
         </a>
 
         <!-- Desktop nav links -->
-        <div class="hidden sm:flex items-center gap-1">
+        <div class="hidden sm:flex items-center gap-1.5">
           {% set nav_links = [
             ('/dashboard',     'Dashboard',    'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'),
             ('/transactions',  'Transactions', 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'),
@@ -84,14 +108,13 @@
           {% for href, label, icon_path in nav_links %}
           <a href="{{ href }}"
              id="nav-{{ label | lower }}"
-             class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium
-                    transition-colors duration-150
+             class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono font-medium border transition-all duration-150
                     {% if request.url.path.startswith(href) and href != '/' %}
-                      bg-primary/20 text-primary
+                      bg-primary/10 border-primary/30 text-white
                     {% else %}
-                      text-gray-400 hover:text-white hover:bg-gray-800
+                      border-transparent text-textSecondary hover:text-white hover:bg-surface-elevated/40 hover:border-divider
                     {% endif %}">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none"
                  viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="{{ icon_path }}"/>
             </svg>
@@ -102,7 +125,7 @@
 
         <!-- Mobile hamburger -->
         <button @click="mobileOpen = !mobileOpen"
-                class="sm:hidden p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800"
+                class="sm:hidden p-2 rounded-xl text-textSecondary hover:text-white hover:bg-surface-elevated"
                 aria-label="Toggle menu">
           <svg x-show="!mobileOpen" xmlns="http://www.w3.org/2000/svg"
                class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -127,12 +150,12 @@
          x-transition:leave="transition ease-in duration-100"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 -translate-y-2"
-         class="sm:hidden bg-gray-900 border-t border-gray-800 px-4 pb-3 pt-2 space-y-1">
-      <a href="/dashboard"   class="block px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-800">Dashboard</a>
-      <a href="/transactions" class="block px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-800">Transactions</a>
-      <a href="/reports"      class="block px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-800">Reports</a>
-      <a href="/receipts/capture" class="block px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-800">Receipts</a>
-      <a href="/vision" class="block px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-800">Smart Vision</a>
+         class="sm:hidden bg-surface border-t border-divider px-4 pb-3 pt-2 space-y-1 font-mono text-xs z-40 relative">
+      <a href="/dashboard"   class="block px-3 py-2 rounded-xl text-textSecondary hover:bg-surface-elevated hover:text-white transition-colors">Dashboard</a>
+      <a href="/transactions" class="block px-3 py-2 rounded-xl text-textSecondary hover:bg-surface-elevated hover:text-white transition-colors">Transactions</a>
+      <a href="/reports"      class="block px-3 py-2 rounded-xl text-textSecondary hover:bg-surface-elevated hover:text-white transition-colors">Reports</a>
+      <a href="/receipts/capture" class="block px-3 py-2 rounded-xl text-textSecondary hover:bg-surface-elevated hover:text-white transition-colors">Receipts</a>
+      <a href="/vision" class="block px-3 py-2 rounded-xl text-textSecondary hover:bg-surface-elevated hover:text-white transition-colors">Smart Vision</a>
     </div>
   </nav>
 
@@ -217,6 +240,61 @@
 
   <!-- ── App JS ─────────────────────────────────────────────── -->
   <script src="{{ request.url_for('static', path='js/app.js') }}"></script>
+
+  <!-- ── 3D Grid Animation Script ── -->
+  <script>
+    (function() {
+      const canvas = document.getElementById('floating-grid');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      let animationId;
+      let time = 0;
+
+      const resize = () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      };
+      resize();
+      window.addEventListener('resize', resize);
+
+      const drawGrid = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const gridSize = 45;
+        const perspective = 700;
+        const rotationX = Math.sin(time * 0.0003) * 0.25;
+        const rotationY = Math.cos(time * 0.0002) * 0.15;
+
+        for (let x = -15; x <= 15; x++) {
+          for (let z = -15; z <= 15; z++) {
+            const worldX = x * gridSize;
+            const worldZ = z * gridSize - time * 0.015;
+            const adjustedZ = ((worldZ % (gridSize * 30)) + gridSize * 30) % (gridSize * 30) - gridSize * 15;
+
+            const rotatedX = worldX * Math.cos(rotationY) - adjustedZ * Math.sin(rotationY);
+            const rotatedZ = worldX * Math.sin(rotationY) + adjustedZ * Math.cos(rotationY);
+            const rotatedY = rotatedZ * Math.sin(rotationX) + 180;
+            const finalZ = rotatedZ * Math.cos(rotationX) + perspective;
+
+            if (finalZ <= 0) continue;
+
+            const screenX = (rotatedX * perspective) / finalZ + canvas.width / 2;
+            const screenY = (rotatedY * perspective) / finalZ + canvas.height / 2;
+            const size = Math.max(0.8, (perspective / finalZ) * 1.2);
+
+            const alpha = Math.max(0, Math.min(0.12, 1 - finalZ / 1500));
+            ctx.fillStyle = `rgba(90, 69, 246, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        time += 16;
+        animationId = requestAnimationFrame(drawGrid);
+      };
+      drawGrid();
+    })();
+  </script>
 
   {% block scripts %}{% endblock %}
 </body>

@@ -1,31 +1,34 @@
 {% set wdata = data if data else widget_data_map[widget.id] %}
 <div class="flex flex-col h-full">
-  <div class="flex items-center justify-between mb-4">
-    <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-white">{{ wdata.title }}</h3>
-    <a href="/transactions" class="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">View all</a>
+  <div class="flex items-center justify-between mb-4 border-b border-divider pb-2">
+    <h3 class="text-sm font-bold font-mono tracking-widest text-white uppercase">{{ wdata.title }}</h3>
+    <a href="/transactions" class="text-xs font-mono font-medium text-indigo-400 hover:text-indigo-300">[VIEW_ALL]</a>
   </div>
   
   <div class="flex-1 overflow-y-auto pr-2">
-    <ul role="list" class="divide-y divide-gray-200 dark:divide-gray-700">
+    <ul role="list" class="divide-y divide-divider/40">
       {% for txn in wdata.transactions %}
-      <li class="py-3 flex justify-between">
+      <li class="py-3.5 flex justify-between items-center transition-all hover:bg-surface-elevated/10 px-2 rounded-lg">
         <div class="flex flex-col">
-          <p class="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[150px] sm:max-w-[200px]">
+          <p class="text-sm font-mono font-medium text-white truncate max-w-[150px] sm:max-w-[200px]">
+            {% if txn.customer_id and txn.type in ['udhaar', 'payment'] %}
+              <span class="inline-block text-[10px] text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/30 rounded px-1 py-0.2 mr-1">VISION</span>
+            {% endif %}
             {{ txn.description or txn.type.replace('_', ' ').capitalize() }}
           </p>
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ txn.date.strftime('%b %d') }}</p>
+          <p class="text-xs text-textHint font-mono mt-0.5">{{ txn.date.strftime('%b %d, %H:%M') }}</p>
         </div>
         <div class="flex flex-col items-end">
-          {% if txn.type in ['expense', 'credit_given'] %}
-            <span class="text-sm font-semibold text-red-600 dark:text-red-400">-₹{{ "{:,.2f}".format(txn.amount) }}</span>
+          {% if txn.type in ['expense', 'credit_given', 'udhaar'] %}
+            <span class="text-sm font-bold font-mono text-error">-₹{{ "{:,.0f}".format(txn.amount) }}</span>
           {% else %}
-            <span class="text-sm font-semibold text-green-600 dark:text-green-400">+₹{{ "{:,.2f}".format(txn.amount) }}</span>
+            <span class="text-sm font-bold font-mono text-success">+₹{{ "{:,.0f}".format(txn.amount) }}</span>
           {% endif %}
-          <span class="text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500">{{ txn.type.replace('_', ' ') }}</span>
+          <span class="text-[9px] uppercase font-mono tracking-wider text-textHint mt-0.5">{{ txn.type.replace('_', ' ') }}</span>
         </div>
       </li>
       {% else %}
-      <li class="py-4 text-sm text-gray-500 text-center">No recent activity.</li>
+      <li class="py-6 text-xs font-mono text-textHint text-center">NO_ACTIVITY_LOGGED</li>
       {% endfor %}
     </ul>
   </div>

@@ -124,3 +124,84 @@ input:-webkit-autofill:focus {
     max-width: 100%;
   }
 }
+
+/* ── Custom Premium Redesign Classes ── */
+
+.noise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Custom animations */
+@keyframes scanning {
+  0% {
+    top: 5%;
+  }
+  50% {
+    top: 95%;
+  }
+  100% {
+    top: 5%;
+  }
+}
+.animate-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #00C853, transparent);
+  box-shadow: 0 0 8px #00C853;
+  animation: scanning 3s linear infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(90, 69, 246, 0.2);
+    border-color: rgba(90, 69, 246, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(90, 69, 246, 0.5);
+    border-color: rgba(90, 69, 246, 0.6);
+  }
+}
+.animate-glow {
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+/* Premium Card / Glassmorphism */
+.glass-card {
+  background: rgba(26, 26, 26, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(42, 42, 42, 0.7);
+  transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card:hover {
+  border-color: rgba(90, 69, 246, 0.45);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7), 0 0 15px -3px rgba(90, 69, 246, 0.1);
+  transform: translateY(-2px);
+}
+
+/* 3D button clicks */
+.active-3d {
+  position: relative;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.active-3d:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 0 currentColor !important;
+}
+
+/* Tabular figures for monospace balance alignments */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+

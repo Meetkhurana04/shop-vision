@@ -63,6 +63,7 @@ def get_widget_data(db: Session, user_id: int, widget: DashboardWidget) -> Dict[
     if widget.widget_type == "summary_card":
         metric = config.get("metric")
         if metric == "today_sales":
+            # Today's sales = regular 'sale' transactions today
             val = db.query(func.sum(Transaction.amount)).filter(
                 Transaction.user_id == user_id,
                 Transaction.date == today,
@@ -71,18 +72,23 @@ def get_widget_data(db: Session, user_id: int, widget: DashboardWidget) -> Dict[
             return {"value": val, "title": config.get("title", "Today's Sales"), "is_currency": True, "color": "green"}
             
         elif metric == "pending_credits":
-            # Pending credits calculation: Credit Given (money owed to shop) - Credit Taken (money shop owes)
-            # Alternatively just show Credit Given total.
-            credit_given = db.query(func.sum(Transaction.amount)).filter(
+            # Pending = total udhaar (vision) + credit_given (old) - total payments (vision) - credit_taken (old)
+            udhaar = db.query(func.sum(Transaction.amount)).filter(
                 Transaction.user_id == user_id,
-                Transaction.type == "credit_given"
+                Transaction.type.in_(["udhaar", "credit_given"])
             ).scalar() or 0.0
-            
-            return {"value": credit_given, "title": config.get("title", "Pending Credits"), "is_currency": True, "color": "yellow"}
+            paid = db.query(func.sum(Transaction.amount)).filter(
+                Transaction.user_id == user_id,
+                Transaction.type.in_(["payment", "credit_taken"])
+            ).scalar() or 0.0
+            net = udhaar - paid
+            return {"value": max(net, 0), "title": config.get("title", "Pending Credits"), "is_currency": True, "color": "yellow" if net > 0 else "green"}
             
     elif widget.widget_type == "recent_transactions":
         limit = config.get("limit", 5)
-        txns = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.date.desc(), Transaction.id.desc()).limit(limit).all()
+        txns = db.query(Transaction).filter(
+            Transaction.user_id == user_id
+        ).order_by(Transaction.date.desc(), Transaction.id.desc()).limit(limit).all()
         return {"transactions": txns, "title": config.get("title", "Recent Activity")}
         
     elif widget.widget_type == "bar_chart":

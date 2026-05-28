@@ -3,33 +3,33 @@
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="dashboard()" @transaction-added.window="window.location.reload()">
   
-  <div class="sm:flex sm:items-center sm:justify-between mb-8">
+  <div class="sm:flex sm:items-center sm:justify-between mb-8 z-10 relative">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-      <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">Welcome back, {{ user.name }}!</p>
+      <h1 class="text-3xl font-bold font-heading text-white tracking-tight">Dashboard</h1>
+      <p class="mt-2 text-sm font-mono text-textSecondary">Welcome back, {{ user.name }}!</p>
     </div>
     
     {% if user.role == 'owner' or user.role == 'manager' %}
     <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
       <button type="button" @click="toggleEditMode()"
-        class="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors"
-        :class="editMode ? 'border-indigo-600 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-500' : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700'">
-        <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        class="inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-xs font-mono font-medium shadow-sm focus:outline-none transition-all active:scale-95 duration-200"
+        :class="editMode ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20' : 'border-divider text-textSecondary bg-surface/50 hover:bg-surface-elevated/80 hover:text-white'">
+        <svg class="-ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path x-show="!editMode" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path x-show="!editMode" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           <path x-show="editMode" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
         </svg>
-        <span x-text="editMode ? 'Done Editing' : 'Customize Layout'"></span>
+        <span x-text="editMode ? 'SAVE LAYOUT' : 'CUSTOMIZE LAYOUT'"></span>
       </button>
     </div>
     {% endif %}
   </div>
 
-  <div x-show="editMode" class="mb-6 bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border border-indigo-100 dark:border-indigo-800 text-sm text-indigo-800 dark:text-indigo-300 flex items-center" style="display: none;">
-    <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  <div x-show="editMode" class="mb-6 bg-indigo-500/10 p-4 rounded-xl border border-indigo-500/20 text-xs font-mono text-indigo-400 flex items-center z-10 relative" style="display: none;">
+    <svg class="h-4 w-4 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
-    Drag widgets by their handles to reorder them. Toggle visibility using the eye icon. Layout saves automatically!
+    <span>[CONFIG_MODE]: Drag widgets by their headers to reorder. Toggle visibility using the eye icon. Layout saves automatically.</span>
   </div>
 
   <!-- Widget Grid -->

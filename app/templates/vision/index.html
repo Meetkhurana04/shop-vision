@@ -3,61 +3,66 @@
 {% block title %}Smart Vision — {{ settings.APP_NAME }}{% endblock %}
 
 {% block content %}
-<div class="h-[calc(100vh-8rem)] flex flex-col md:flex-row gap-6" x-data="visionSystem()">
+<div class="h-[calc(100vh-8rem)] flex flex-col md:flex-row gap-6 relative z-10" x-data="visionSystem()">
     
     <!-- LEFT SIDE: Camera Feed (60%) -->
-    <div class="w-full md:w-3/5 bg-gray-900 rounded-xl overflow-hidden shadow-2xl relative flex flex-col">
+    <div class="w-full md:w-3/5 glass-card rounded-2xl overflow-hidden shadow-2xl relative flex flex-col border border-divider">
         <!-- Header Overlay -->
-        <div class="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-20 flex justify-between items-center">
-            <h2 class="text-white font-semibold flex items-center gap-2">
-                <span class="relative flex h-3 w-3">
+        <div class="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/85 to-transparent z-20 flex justify-between items-center">
+            <h2 class="text-white font-bold font-heading text-sm tracking-widest flex items-center gap-2 select-none">
+                <span class="relative flex h-2 w-2">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                 </span>
                 LIVE FEED
             </h2>
-            <div class="text-xs text-gray-300 font-mono" x-text="fps + ' FPS'">0 FPS</div>
+            <div class="text-[10px] text-textSecondary font-mono tracking-wider bg-black/40 border border-divider/60 rounded px-2 py-0.5" x-text="fps + ' FPS'">0 FPS</div>
         </div>
         
         <!-- Video Container -->
         <div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden" x-ref="videoContainer">
             <!-- Loader -->
-            <div x-show="isLoading" class="absolute inset-0 flex flex-col items-center justify-center text-white z-10 bg-gray-900">
-                <svg class="animate-spin h-10 w-10 text-indigo-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                <p x-text="statusMessage" class="text-sm text-gray-400">Initializing AI models...</p>
+            <div x-show="isLoading" class="absolute inset-0 flex flex-col items-center justify-center text-white z-15 bg-background">
+                <svg class="animate-spin h-8 w-8 text-primary mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <p x-text="statusMessage" class="text-xs font-mono text-textSecondary">Initializing AI models...</p>
             </div>
             
             <video x-ref="video" autoplay muted playsinline class="absolute inset-0 w-full h-full object-cover"></video>
             <canvas x-ref="canvas" class="absolute inset-0 w-full h-full object-cover z-10 pointer-events-none"></canvas>
+            
+            <!-- Scanning Line Overlay (active when camera works) -->
+            <div x-show="cameraActive && !isLoading" class="animate-scan z-15 pointer-events-none" style="display: none;"></div>
         </div>
         
         <!-- Controls -->
-        <div class="bg-gray-800 p-4 flex justify-between items-center border-t border-gray-700 z-20">
-            <button @click="toggleCamera" class="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md text-white text-sm transition-colors">
+        <div class="bg-surface-elevated/20 p-4 flex justify-between items-center border-t border-divider z-20">
+            <button @click="toggleCamera" class="flex items-center gap-2 px-4 py-2 border border-divider hover:border-primary bg-surface/60 hover:bg-surface-elevated rounded-xl text-white text-xs font-mono transition-all duration-200 active:scale-95">
                 <svg x-show="cameraActive" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 <svg x-show="!cameraActive" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /><line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                <span x-text="cameraActive ? 'Stop Camera' : 'Start Camera'"></span>
+                <span x-text="cameraActive ? 'SHUTDOWN_CAMERA' : 'INITIALIZE_CAMERA'"></span>
             </button>
-            <div class="text-xs text-gray-400 flex items-center gap-2">
-                Faces detected: <span class="bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold" x-text="facesDetected">0</span>
+            <div class="text-xs font-mono text-textSecondary flex items-center gap-2">
+                FACES_ON_SCREEN: <span class="bg-primary/20 border border-primary/30 text-white px-2 py-0.5 rounded-md font-bold" x-text="facesDetected">0</span>
             </div>
         </div>
     </div>
 
     <!-- RIGHT SIDE: Live Tiles Sidebar (40%) -->
-    <div class="w-full md:w-2/5 flex flex-col bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div class="p-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-            <h3 class="font-bold text-gray-900 dark:text-white">Live Customers</h3>
-            <button class="text-indigo-600 hover:text-indigo-500 text-sm font-medium">History</button>
+    <div class="w-full md:w-2/5 flex flex-col glass-card rounded-2xl border border-divider overflow-hidden">
+        <!-- Sidebar Header -->
+        <div class="p-4 bg-surface-elevated/20 border-b border-divider flex justify-between items-center">
+            <h3 class="font-bold font-heading text-sm text-white tracking-widest uppercase">Live Customers</h3>
+            <span class="text-[9px] font-mono text-textHint">auto_save_enabled</span>
         </div>
         
-        <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-100 dark:bg-gray-800/50">
+        <!-- Sidebar Tiles List -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-surface/10">
             <!-- Detected Faces List -->
             <template x-for="(face, index) in detectedFaces" :key="face.id">
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 transition-all duration-300 transform hover:-translate-y-1">
+                <div class="glass-card border border-divider/60 rounded-xl p-4 transition-all duration-300 hover:border-primary/40">
                     <div class="flex gap-4">
                         <!-- Face crop thumbnail -->
-                        <div class="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden flex-shrink-0 border-2" :class="face.status === 'known' ? 'border-green-500' : 'border-indigo-500'">
+                        <div class="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border-2" :class="face.status === 'known' ? 'border-success/60' : 'border-primary/60'">
                             <img :src="face.base64Image" class="w-full h-full object-cover" />
                         </div>
                         
@@ -65,18 +70,17 @@
                         <div class="flex-1" x-show="face.status === 'known'">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <h4 class="font-bold text-green-700 dark:text-green-400 text-lg" x-text="face.customer.family_name + ' Family'"></h4>
-                                    <p class="text-xs text-gray-500" x-text="face.customer.display_name"></p>
+                                    <h4 class="font-bold font-heading text-success text-base leading-tight" x-text="face.customer.family_name + ' Family'"></h4>
+                                    <p class="text-xs font-mono text-textSecondary mt-0.5" x-text="face.customer.display_name"></p>
                                 </div>
-                                <span class="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded shadow-sm flex items-center gap-1">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                    Matched
+                                <span class="text-[10px] font-mono font-bold bg-success/15 border border-success/30 text-success px-2 py-0.5 rounded-md shadow-sm flex items-center gap-1">
+                                    MATCHED
                                 </span>
                             </div>
-                            <div class="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                            <div class="mt-3 text-xs">
                                 <a :href="'/vision/customer/' + face.customer.customer_id"
-                                   class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 py-1 px-3 rounded shadow-sm w-full transition-colors block text-center">
-                                  View Dashboard &rarr;
+                                   class="bg-surface hover:bg-surface-elevated text-textSecondary hover:text-white border border-divider py-1.5 px-3 rounded-lg w-full transition-colors block text-center font-mono">
+                                  OPEN LEDGER &rarr;
                                 </a>
                             </div>
                         </div>
@@ -84,48 +88,50 @@
                         <!-- Unknown Status -->
                         <div class="flex-1" x-show="face.status === 'unknown'">
                             <div class="flex justify-between items-start">
-                                <h4 class="font-bold text-gray-900 dark:text-white text-lg">Unknown Person</h4>
-                                <span class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded">New</span>
+                                <h4 class="font-bold font-heading text-white text-base leading-tight">New Face</h4>
+                                <span class="text-[10px] font-mono bg-primary/10 border border-primary/20 text-indigo-400 px-2 py-0.5 rounded-md">UNREGISTERED</span>
                             </div>
                             <div class="mt-3 flex gap-2">
-                                <button @click="face.status = 'registering'" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs py-1.5 px-3 rounded shadow-sm transition-colors">Add New</button>
-                                <button @click="detectedFaces.splice(index, 1)" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-xs py-1.5 px-3 rounded shadow-sm transition-colors">Dismiss</button>
+                                <button @click="face.status = 'registering'" class="flex-1 bg-primary hover:bg-primary-light text-white text-xs font-mono py-1.5 px-3 rounded-lg shadow transition-all">Add New</button>
+                                <button @click="detectedFaces.splice(index, 1)" class="bg-surface hover:bg-surface-elevated text-textSecondary hover:text-white border border-divider text-xs font-mono py-1.5 px-3 rounded-lg transition-all">Dismiss</button>
                             </div>
                         </div>
                         
                         <!-- Registering Form -->
                         <div class="flex-1" x-show="face.status === 'registering'">
                             <form @submit.prevent="registerFace(face, index)" class="space-y-2">
-                                <input type="text" x-model="face.familyName" placeholder="Family Name (e.g. Smith)" required class="w-full text-sm border-gray-300 rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600">
-                                <input type="text" x-model="face.displayName" placeholder="Person Name (Optional)" class="w-full text-sm border-gray-300 rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600">
-                                <input type="text" x-model="face.phone" placeholder="Phone (Optional)" class="w-full text-sm border-gray-300 rounded px-2 py-1 dark:bg-gray-700 dark:border-gray-600">
+                                <input type="text" x-model="face.familyName" placeholder="Family Name (e.g. Smith)" required class="w-full text-xs font-mono bg-surface border border-divider rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-primary">
+                                <input type="text" x-model="face.displayName" placeholder="Person Name (Optional)" class="w-full text-xs font-mono bg-surface border border-divider rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-primary">
+                                <input type="text" x-model="face.phone" placeholder="Phone (Optional)" class="w-full text-xs font-mono bg-surface border border-divider rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-primary">
                                 
                                 <div class="flex gap-2 pt-1">
-                                    <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-3 rounded shadow-sm">Save</button>
-                                    <button type="button" @click="face.status = 'unknown'" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1.5 px-3 rounded shadow-sm">Cancel</button>
+                                    <button type="submit" class="flex-1 bg-success hover:bg-success/90 text-white text-xs font-mono py-1.5 px-3 rounded-lg">Save</button>
+                                    <button type="button" @click="face.status = 'unknown'" class="bg-surface border border-divider hover:bg-surface-elevated text-textSecondary hover:text-white text-xs font-mono py-1.5 px-3 rounded-lg">Cancel</button>
                                 </div>
                             </form>
                         </div>
                         
                         <!-- Registered Status -->
-                        <div class="flex-1 flex flex-col justify-center" x-show="face.status === 'registered'">
-                            <div class="text-green-600 font-semibold flex items-center gap-2 text-lg">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        <div class="flex-1 flex flex-col justify-center animate-fade-in" x-show="face.status === 'registered'">
+                            <div class="text-success font-bold font-heading flex items-center gap-2 text-base">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                 Saved!
                             </div>
-                            <div class="text-sm text-gray-500 mt-1">Family: <span class="font-bold text-gray-700 dark:text-gray-300" x-text="face.familyName"></span></div>
+                            <div class="text-xs font-mono text-textSecondary mt-1">Family: <span class="font-bold text-white" x-text="face.familyName"></span></div>
                         </div>
                     </div>
                 </div>
             </template>
             
             <!-- Empty state -->
-            <div x-show="detectedFaces.length === 0" class="h-full flex flex-col items-center justify-center text-gray-400 space-y-3">
-                <svg class="h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                <p class="text-sm">Waiting for customers...</p>
+            <div x-show="detectedFaces.length === 0" class="h-full flex flex-col items-center justify-center text-textHint space-y-4 py-20">
+                <div class="w-12 h-12 rounded-xl border border-divider flex items-center justify-center bg-surface-elevated/10">
+                    <svg class="h-6 w-6 text-textHint animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                </div>
+                <p class="text-xs font-mono tracking-wider">WAITING_FOR_CAMERA_INPUT...</p>
             </div>
         </div>
     </div>
